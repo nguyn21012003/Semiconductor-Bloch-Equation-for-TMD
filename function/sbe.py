@@ -36,18 +36,20 @@ def Coulomb(data, modelNeighbor):
 
     eigenVectors = solveHamiltonian(data, grid, modelNeighbor)
     coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 2, 2], dtype=complex)
+    vecs_at_cutoff = eigenVectors[mappingArray[:, 0], mappingArray[:, 1], :2, :]
+
     for i in tqdm(range(num_kcutoff), desc="Calculating Coulomb.."):
+        vec_i = vecs_at_cutoff[i]  # (4, num_orbitals)
+        vec_i_T = vec_i.T  # (num_orbitals, 4)
+        is_k_i_in_K1 = i < len(map_k1)
         for j in range(num_kcutoff):
-            if (
-                check_valid_cutoff_array[mappingArray[i, 0], mappingArray[i, 1], 0]
-                and check_valid_cutoff_array[mappingArray[j, 0], mappingArray[j, 1], 0]
-                or check_valid_cutoff_array[mappingArray[i, 0], mappingArray[i, 1], 1]
-                and check_valid_cutoff_array[mappingArray[j, 0], mappingArray[j, 1], 1]
-            ):
-                S = np.conjugate(eigenVectors[mappingArray[j, 0], mappingArray[j, 1], :, :]).T @ eigenVectors[mappingArray[i, 0], mappingArray[i, 1], :, :]
-                for m in range(0, 2):
-                    for n in range(0, 2):
-                        coulombInteractionArray[i, j, m, n] = S[m, n]
+            is_k_j_in_K1 = j < len(map_k1)
+
+            if is_k_i_in_K1 == is_k_j_in_K1:
+
+                vec_j = vecs_at_cutoff[j]  # (4, num_orbitals)
+                overlap = vec_j.conj() @ vec_i_T
+                coulombInteractionArray[j, i, :, :] = overlap
     print(coulombInteractionArray)
 
 
