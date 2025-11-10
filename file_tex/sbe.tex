@@ -507,8 +507,19 @@ Kết hợp phương trình \eqref{eq: equation of motion in HF with Coulomb} v�
 		& =  - \frac{i}{\hbar} ( \mathcal{E}_{\lambda}(\mathbf{k}) - \mathcal{E}_{\lambda'}(\mathbf{k}) ) \rho_{\lambda \lambda'}(\mathbf{k}) \\
 		& \quad - i \sum_{\mu} \left( \Omega_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu}(\mathbf{k}) \Omega_{\mu \lambda'}(\mathbf{k}) \right) + \frac{e}{\hbar} \mathbf{E}(t) \cdot \nabla_{\mathbf{k}} \rho_{\lambda \lambda'}(\mathbf{k}) .
 	\end{aligned}
-	\label{eq: equation of motion in HF general}
+	\label{eq: equation of motion in HF general in LG}
 \end{equation} 
+Trong gauge vận tốc ta có
+\begin{equation}
+	\begin{aligned}
+		\frac{d}{dt} \rho_{\lambda \lambda'}(\mathbf{k})
+		& = - \frac{i}{\hbar} ( \mathcal{E}_{\lambda}(\mathbf{k}) - \mathcal{E}_{\lambda'}(\mathbf{k}) ) \rho_{\lambda \lambda'}(\mathbf{k}) \\
+		& \quad + \frac{i}{\hbar} \sum_{\mu} \left[ \Sigma_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu} \Sigma_{\mu \lambda'}(\mathbf{k})  \right] \\
+		& \quad - \frac{ie}{\hbar m} \mathbf{A}(t) \cdot  \sum_{ \mu }  \big( \mathbf{p}_{\mu \lambda}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu}(\mathbf{k}) \mathbf{p}_{\lambda' \mu}(\mathbf{k}) \big)  .  
+	\end{aligned}
+	\label{eq: equation of motion in HF general in VG}
+\end{equation}
+
 \section{Hamiltonian tight-binding 3 bands}
 \subsection{Tương tác Coulomb}
 \begin{equation}
