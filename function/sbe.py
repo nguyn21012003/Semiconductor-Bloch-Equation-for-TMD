@@ -17,17 +17,19 @@ def Hartree_Fock_func(data, modelNeighbor):
     alattice = data["alattice"] * 1e-1
     N = Config.N
     detuning = Config.detuning
+    e_charge = Config.e_charge
 
     grid, dkx, dky = genGrid.Monkhorst(alattice, N)
     plot_grid(grid, "kgrid.dat")
     eigenValues, eigenVectors, grad_Ham_kx, grad_Ham_ky = solveHamiltonian(data, grid, modelNeighbor)
 
     egap = np.min(eigenValues[:, :, 1]) - np.max(eigenValues[:, :, 0])
-
     print(f"Energy gap: ", egap, "eV", "\n")
     print(f"Detuning: ", detuning, "eV")
 
-    w0 = (egap + detuning) / Config.hbar
+    w0 = (egap + detuning) * e_charge / Config.hbar
+    print(f"Frequency: ", w0)
+    # vector_pot = pulse.At(w0)
 
     check_degenaracy = np.zeros([3, 3])
     for i in tqdm(range(N), desc="Check degenaracy"):
@@ -41,7 +43,11 @@ def Hartree_Fock_func(data, modelNeighbor):
     ################################################################# Post SBE
     p = momentum(eigenVectors, grad_Ham_kx, grad_Ham_ky)
     xi = dipole(eigenValues, p, check_degenaracy)
-    vector_pot = pulse.At(w0)
+
+    ################################################################# SBE
+    rho = np.zeros([N, N, 3, 3])
+    rho[:, :, 0, 0] = 1
+    rho[:, :, 1, 1] = 1
 
     # hamiltonian_coulomb = Coulomb(alattice, eigenVectors, grid, dk)
 
