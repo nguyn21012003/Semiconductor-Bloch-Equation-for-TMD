@@ -11,18 +11,18 @@ from core import genGrid
 
 
 def writeBandstructure(data, modelNeighbor, file):
-    akx, aky, eigenValues = calcBandstructure(data, modelNeighbor)
-    N = akx.shape[0]
+    karr, eigenValues = calcBandstructure(data, modelNeighbor)
+    N = Config.N
     with open(file, "w", newline="") as f:
         header = ["kx", "L1", "L2", "L3"]
         writer = csv.DictWriter(f, fieldnames=header)
         writer.writeheader()
         for i in tqdm(range(N), desc="Write file"):
             row = {
-                "kx": akx[i][i],
-                "L1": eigenValues[i][i][0],
-                "L2": eigenValues[i][i][1],
-                "L3": eigenValues[i][i][2],
+                "kx": karr[i, i, 0],
+                "L1": eigenValues[i, i, 0],
+                "L2": eigenValues[i, i, 1],
+                "L3": eigenValues[i, i, 2],
             }
 
             writer.writerow(row)
@@ -33,7 +33,7 @@ def calcBandstructure(data, modelNeighbor):
     N = Config.N
     alattice = data["alattice"]
     # grid K phai chay lai moi lan do khac alattice
-    akx, aky, dkx, dky = genGrid.Rhombus(alattice, N)
+    karr, dkx, dky = genGrid.Monkhorst(alattice, N)
     e_charge = Config.e_charge
     varepsilon = Config.varepsilon
     varepsilon0 = Config.varepsilon0
@@ -44,9 +44,11 @@ def calcBandstructure(data, modelNeighbor):
     eigenValues = np.zeros([N, N, 3])
     for i in tqdm(range(N), desc="Calculate bandstructure"):
         for j in range(N):
-            alpha = akx[i][j] / 2 * alattice
-            beta = sqrt(3) / 2 * aky[i][j] * alattice
-            ham = tbm_Hamiltonian(alpha, beta, data, modelNeighbor)
+            alpha = karr[i, j, 0] / 2 * alattice
+            beta = sqrt(3) / 2 * karr[i, j, 1] * alattice
+            ham,dhamkx,dhamky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor,alattice)
             vals = np.linalg.eigvalsh(ham)
-            eigenValues[i, j, :] = vals[:3]
-    return akx, aky, eigenValues
+            eigenValues[i, j, :] = vals
+    Egap = np.min(eigenValues[:, :, 1]) - np.max(eigenValues[:, :, 0])
+    print(Egap)
+    return karr, eigenValues
