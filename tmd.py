@@ -4,7 +4,7 @@ from core import irrMatrix, irrMatrixTransform
 from core.parameters import getParams, paraNN, paraTNN
 from function.bands import writeBandstructure
 from function.mass import calcMass
-from function.sbe import Coulomb, solveHamiltonian
+from function.sbe import Coulomb, Hartree_Fock_func, solveHamiltonian
 from settings.configs import Config
 from utils.draw import drawBandstructure
 
@@ -39,7 +39,7 @@ class Material:
 
     def absorptionSpectrum(self):
         data = getParams(self.name, self.modelNeighbor, self.modelApprox)
-        Coulomb(data, self.modelNeighbor)
+        Hartree_Fock_func(data, self.modelNeighbor)
 
 
 def main():
