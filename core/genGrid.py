@@ -11,6 +11,7 @@ def Rhombus(alattice: float, N: int):
 
     akx = np.zeros([len(ak1), len(ak2)])
     aky = np.zeros([len(ak1), len(ak2)])
+    kArr = np.zeros([len(ak1), len(ak2), 2])
     dkx = G / (N - 1)
     dky = G / (N - 1)
     for i in tqdm(range(N), desc="Create k grid", colour="red"):
@@ -18,7 +19,10 @@ def Rhombus(alattice: float, N: int):
             akx[i][j] = sqrt(3) / 2 * (ak1[i] + ak2[j])
             aky[i][j] = -1 / 2 * (ak1[i] - ak2[j]) * 0
 
-    return akx, aky, dkx, dky
+    kArr[:, :, 0] = akx
+    kArr[:, :, 1] = aky
+
+    return kArr, dkx, dky
 
 
 def Monkhorst(alattice: float, N: int):
@@ -28,7 +32,7 @@ def Monkhorst(alattice: float, N: int):
     akx = np.zeros((N, N))
     aky = np.zeros((N, N))
 
-    kArr = np.zeros([N,N,2])
+    kArr = np.zeros([N, N, 2])
     for i in tqdm(range(1, N + 1), desc="Monkhorst-Pack k grid", colour="red"):
         for j in range(1, N + 1):
 
@@ -39,6 +43,9 @@ def Monkhorst(alattice: float, N: int):
     dkx = sqrt(3) / 2 * abs(akx[0, 0] - akx[1, 0])
     dky = 1 / 2 * abs(akx[0, 1] - akx[0, 0])
 
-    kArr[:,:,0] = akx
-    kArr[:,:,1] = aky
+    kArr[:, :, 0] = akx
+    kArr[:, :, 1] = aky
     return kArr, dkx, dky
+
+
+
