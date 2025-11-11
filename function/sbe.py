@@ -7,10 +7,10 @@ from numpy.typing import NDArray
 from tqdm import tqdm
 
 from core import genGrid
-from core.genHam import tbm_Hamiltonian
-from settings.configs import Config
-
 from core import pulse
+from core.genHam import tbm_Hamiltonian
+from function.rk4 import rk4
+from settings.configs import Config
 
 
 def Hartree_Fock_func(data, modelNeighbor):
@@ -45,18 +45,65 @@ def Hartree_Fock_func(data, modelNeighbor):
     xi = dipole(eigenValues, p, check_degenaracy)
 
     ################################################################# SBE
-    rho = np.zeros([N, N, 3, 3])
+    rho = np.zeros([N, N, 2, 2])  # note: chua co spin nen chi xet la 2, co spin thi la 4
     rho[:, :, 0, 0] = 1
-    rho[:, :, 1, 1] = 1
+    # rho[:, :, 1, 1] = 1
+    tmin = Config.tmin * 1e-15
+    tmax = Config.tmax * 1e-15
+    td = Config.time_duration
+    ntmax = int((tmax - tmin) / td)
+    P_t = np.zeros([ntmax, 2], dtype="float")
 
-    # hamiltonian_coulomb = Coulomb(alattice, eigenVectors, grid, dk)
+    exchange_term = Coulomb(alattice, eigenVectors, grid, dk)
+    hamiltonian_coulomb(exchange_term, rho)
+
+
+def rhsSBE():
+
+    pass
 
 
 def plot_grid(kArr, file):
     kx = kArr[:, :, 0].flatten()
     ky = kArr[:, :, 1].flatten()
-    header = ["kx", "ky"]
     np.savetxt(f"./results/" + file, np.column_stack((kx, ky)), header="kx,ky", delimiter=",")
+
+
+def hamiltonian_coulomb(data, rho):
+    N = Config.N
+
+    (
+        coulomb_const,
+        num_kcutoff,
+        num_k1_points,
+        mapping,
+        kArray,
+        V_coulomb,
+    ) = data
+    hamiltonian_coulomb = np.zeros([N, N, 2, 2], dtype="complex")
+    for i in tqdm(range(num_kcutoff), desc="Calculating Coulomb"):
+        is_k_i_in_K1 = i < num_k1_points
+        for mu in range(0, 2):
+            for nu in range(0, 2):
+                sum1 = 0.0j
+                for j in range(num_kcutoff):
+                    is_k_j_in_K1 = j < num_k1_points
+                    if is_k_i_in_K1 != is_k_j_in_K1:
+                        continue
+                    if i == j:
+                        continue
+                    c = kArray[i] - kArray[j]
+                    q = 1 / np.linalg.norm(c)
+                    V_coulomb_ji = V_coulomb[j, i, :, nu]
+                    V_coulomb_ij = V_coulomb[i, j, mu, :]
+
+                    M = rho[mapping[j, 0], mapping[j, 1], :, :] @ V_coulomb_ji  # (2,2) @ (2,) -> (2,)
+                    term = V_coulomb_ij @ M
+                    sum1 -= term * q
+
+                hamiltonian_coulomb[mapping[i, 0], mapping[i, 1], mu, nu] = sum1 * coulomb_const
+
+    return hamiltonian_coulomb
 
 
 def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
@@ -77,6 +124,8 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
         indices_k1_tuple = np.where(check_valid_cutoff_array[:, :, 0])
         # check True elements and return index
 
+        map_k1 = np.column_stack(indices_k1_tuple)
+        num_k1_points = len(map_k1)
         map_k1 = np.column_stack(indices_k1_tuple)
         indices_k2_tuple = np.where(check_valid_cutoff_array[:, :, 1])
         map_k2 = np.column_stack(indices_k2_tuple)
@@ -109,26 +158,15 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
 
     print(coulombInteractionArray)
 
-    hamiltonian_coulomb = np.zeros([N, N, 2, 2])
-    for i in tqdm(range(num_kcutoff), desc="Calculating Coulomb"):
-        is_k_i_in_K1 = i < len(map_k1)
-        for mu in range(0, 2):
-            for nu in range(0, 2):
-                sum1 = 0
-                for j in range(num_kcutoff):
-                    is_k_j_in_K1 = j < len(map_k1)
-                    if is_k_i_in_K1 != is_k_j_in_K1:
-                        continue
-                    if i == j:
-                        continue
-                    c = kArray[i] - kArray[j]
-                    q = 1 / np.linalg.norm(c)
-                    for beta in range(0, 2):
-                        for alpha in range(0, 2):
-                            if alpha == beta:
-                                continue
-                            sum1 -= coulombInteractionArray[j, i, alpha, nu] * coulombInteractionArray[i, j, mu, beta] * q
-    return None
+    exch = (
+        coulomb_const,
+        num_kcutoff,
+        num_k1_points,
+        mappingArray,
+        kArray,
+        coulombInteractionArray,
+    )
+    return exch
 
 
 def dipole(E, P, check_degenaracy):
