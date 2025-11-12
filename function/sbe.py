@@ -1,4 +1,3 @@
-import csv
 from typing import Tuple
 
 import numpy as np
@@ -9,8 +8,9 @@ from tqdm import tqdm
 from core import genGrid
 from core import pulse
 from core.genHam import tbm_Hamiltonian
-from function.rk4 import rk4
 from settings.configs import Config
+from numba import jit
+import numba as nb
 
 
 def Hartree_Fock_func(data, modelNeighbor):
@@ -20,6 +20,7 @@ def Hartree_Fock_func(data, modelNeighbor):
     e_charge = Config.e_charge
 
     grid, dkx, dky = genGrid.Monkhorst(alattice, N)
+    print(grid.shape)
     plot_grid(grid, "kgrid.dat")
     eigenValues, eigenVectors, grad_Ham_kx, grad_Ham_ky = solveHamiltonian(data, grid, modelNeighbor)
 
@@ -39,28 +40,174 @@ def Hartree_Fock_func(data, modelNeighbor):
                     if np.abs(eigenValues[i, j, nu] - eigenValues[i, j, mu]) < 1e-2:
                         check_degenaracy[mu, nu] += 1
     dk = (dkx, dky)
-    print(check_degenaracy)
+    # print(check_degenaracy)
     ################################################################# Post SBE
     p = momentum(eigenVectors, grad_Ham_kx, grad_Ham_ky)
     xi = dipole(eigenValues, p, check_degenaracy)
 
     ################################################################# SBE
-    rho = np.zeros([N, N, 2, 2])  # note: chua co spin nen chi xet la 2, co spin thi la 4
+    rho = np.zeros([N, N, 3, 3])  # note: chua co spin nen chi xet la 2, co spin thi la 4
     rho[:, :, 0, 0] = 1
     # rho[:, :, 1, 1] = 1
-    tmin = Config.tmin * 1e-15
-    tmax = Config.tmax * 1e-15
-    td = Config.time_duration
-    ntmax = int((tmax - tmin) / td)
-    P_t = np.zeros([ntmax, 2], dtype="float")
+    tmin = Config.tmin
+    tmax = Config.tmax
+    dt = Config.dt
+    ntmax = int((tmax - tmin) / dt)
+    T02 = Config.T_cohenrent
 
-    exchange_term = Coulomb(alattice, eigenVectors, grid, dk)
-    hamiltonian_coulomb(exchange_term, rho)
+    data_Coulomb = Coulomb(alattice, eigenVectors, grid, dk)
+    # ############################################################ Calculating SBE
+    # P_t_array = np.zeros([ntmax, 2], dtype=float)  # Save P(t)
+    # E_t_array = np.zeros([ntmax, 2], dtype=float)  # Save E(t)
+    # time_array = np.zeros(ntmax, dtype=float)
+    # Atx, Aty = 0, 0
+    # At = (Atx, Aty)
+    # for nt in tqdm(range(0, ntmax), desc="RK4 SBE: "):
+    #     time = tmin + ((nt + 1) * dt)
+    #     Etx, Ety = pulse.Et(time, w0)
+    #     Et = (Etx, Ety)
+    #     rk4(rho, At, Et, p, dk, data_Coulomb, eigenValues, T02)
+    #     Px, Py = totalPolarizationFunction(rho, xi, dk)
+    #     P_t_array[nt, 0] = Px
+    #     P_t_array[nt, 1] = Py
+    # absorptionSpectra(P_t_array, w0, egap)
 
 
-def rhsSBE():
+def absorptionSpectra(P_t_array: NDArray, w0, egap):  # Mảng P(t) (kích thước [ntmax, 2])
+    Nw = 2000
+    tmin = Config.tmin
+    tmax = Config.tmax
+    dt = Config.time_duration
+    ntmax = int((tmax - tmin) / dt)
+    E0 = Config.E0
+    epl = Config.epl
+    hbar = Config.hbar
+    dt = Config.dt
 
-    pass
+    wa = w0 - 1.0 / hbar  # (đơn vị 1/fs)
+    wb = w0 + 1.0 / hbar  # (đơn vị 1/fs)
+    dw = (wb - wa) / Nw
+    omega_array = wa + np.arange(Nw + 1) * dw
+    output_file = "AbSpect.dat"
+    results = []
+
+    for w in tqdm(omega_array, desc="Calculating Spectrum (Manual FFT)"):
+        s1, s2, s3, s4, s5, s6 = (0j, 0j, 0j, 0j, 0j, 0j)
+        for tt in range(ntmax + 1):
+            t = tmin + (tt) * dt
+            (Ex, Ey) = pulse.Et(t, w0)
+            if np.abs(Ex) < 1e-16:
+                theta = pi / 2.0
+            else:
+                theta = np.arctan(Ey / Ex)
+            eiwt = np.exp(1j * w * t)
+            try:
+                s1 += eiwt * P_t_array[tt, 0] * dt
+                s2 += eiwt * P_t_array[tt, 1] * dt
+
+                s3 += eiwt * Ex * dt
+                s4 += eiwt * Ey * dt
+
+                E_norm = np.sqrt(Ex**2 + Ey**2)
+                P_dot_E = (P_t_array[tt, 0] * Ex) + (P_t_array[tt, 1] * Ey)
+                s5 += eiwt * (P_dot_E / E_norm) * dt
+
+                E_mag_proj = (Ex * np.cos(theta)) + (Ey * np.sin(theta))
+                s6 += eiwt * E_mag_proj * dt
+
+            except IndexError:
+                if tt == ntmax:
+                    print(f"Cảnh báo: P_t_array ngắn hơn (ntmax) so với vòng lặp (ntmax+1).")
+                break
+
+        chi_x = s1 / (s3 + 1e-16)
+        chi_y = s2 / (s4 + 1e-16)
+        chi_s56 = s5 / (s6 + 1e-16)
+        results.append(
+            (
+                w * hbar,
+                w * hbar - egap,
+                np.real(s1),
+                np.imag(s1),
+                np.real(s2),
+                np.imag(s2),
+                np.real(s3),
+                np.imag(s3),
+                np.real(s4),
+                np.imag(s4),
+                np.real(chi_x),
+                np.imag(chi_x),
+                np.real(chi_y),
+                np.imag(chi_y),
+                np.real(s5),
+                np.imag(s5),
+                np.real(s6),
+                np.imag(s6),
+                np.real(chi_s56),
+                np.imag(chi_s56),
+            )
+        )
+
+    # 8. Ghi file
+    header = (
+        "Energy(eV),Energy_minus_Egap(eV),"
+        "Re(Px_w),Im(Px_w),Re(Py_w),Im(Py_w),"
+        "Re(Ex_w),Im(Ex_w),Re(Ey_w),Im(Ey_w),"
+        "Re(Chi_x),Im(Chi_x),Re(Chi_y),Im(Chi_y),"
+        "Re(S5_P_dot_e),Im(S5_P_dot_e),"
+        "Re(S6_E_mag),Im(S6_E_mag),"
+        "Re(S5/S6),Im(S5/S6)"
+    )
+
+    np.savetxt(output_file, np.array(results), fmt="%.15e", delimiter=",", header=header)
+
+    return results
+
+
+def totalPolarizationFunction(rho, xi, dk):
+    qe = Config.e_charge
+
+    xi_x, xi_y = xi
+    dkx, dky = dk
+    c = dkx * dky / (2 * pi) ** 2
+
+    Px_t = qe * c * np.real(np.einsum("ijmn,ijnm->", xi_x, rho))
+    Py_t = qe * c * np.real(np.einsum("ijmn,ijnm->", xi_y, rho))
+    return Px_t, Py_t
+
+
+def rk4(rho, At, Et, p, dk, exchange_term, E, T02):
+    dt = Config.dt
+    k1 = rhsSBE(0, rho, At, Et, p, dk, E, T02, exchange_term)
+    k2 = rhsSBE(0.5, rho + 0.5 * k1 * dt, At, Et, p, dk, E, T02, exchange_term)
+    k3 = rhsSBE(0.5, rho + 0.5 * k2 * dt, At, Et, p, dk, E, T02, exchange_term)
+    k4 = rhsSBE(1.0, rho + 1.0 * k3 * dt, At, Et, p, dk, E, T02, exchange_term)
+
+    return rho + (k1 + 2 * k2 + 2 * k3 + k4) / 6
+
+
+def rhsSBE(ind, rho, At, Et, p, dk, E, T02, exchange_term):
+    Atx, Aty = At
+    Etx, Ety = Et
+    px, py = p
+    dkx, dky = dk
+    qe = Config.e_charge
+    me = Config.m_e
+    dt = Config.dt
+    N = Config.N
+    H = np.zeros([N, N, 3, 3], dtype="complex")
+    den_of_electron = (dkx * dky / (2 * pi) ** 2) * np.real(np.sum(rho[:, :, 1, 1]))
+    T2 = (1 / T02) + den_of_electron * Config.gamma
+
+    for m in range(3):
+        H[:, :, m, m] = E[:, :, m]
+
+    Ax = Atx - ind * Etx * dt
+    Ay = Aty - ind * Ety * dt
+    HF = hamiltonian_coulomb(exchange_term, rho, N) - (qe / me * Ax * px) - (qe / me * Ay * py)
+    H += HF
+    Y = -(1j / Config.hbar) * (H @ rho - rho @ H) - rho * (1 - np.eye(3)) * T2
+    return Y
 
 
 def plot_grid(kArr, file):
@@ -69,8 +216,8 @@ def plot_grid(kArr, file):
     np.savetxt(f"./results/" + file, np.column_stack((kx, ky)), header="kx,ky", delimiter=",")
 
 
-def hamiltonian_coulomb(data, rho):
-    N = Config.N
+@jit(nopython=True, parallel=True)
+def hamiltonian_coulomb(data, rho, N):
 
     (
         coulomb_const,
@@ -80,11 +227,11 @@ def hamiltonian_coulomb(data, rho):
         kArray,
         V_coulomb,
     ) = data
-    hamiltonian_coulomb = np.zeros([N, N, 2, 2], dtype="complex")
-    for i in tqdm(range(num_kcutoff), desc="Calculating Coulomb"):
+    hamiltonian_coulomb = np.zeros((N, N, 3, 3), dtype=np.complex128)
+    for i in nb.prange(num_kcutoff):
         is_k_i_in_K1 = i < num_k1_points
-        for mu in range(0, 2):
-            for nu in range(0, 2):
+        for mu in range(0, 3):
+            for nu in range(0, 3):
                 sum1 = 0.0j
                 for j in range(num_kcutoff):
                     is_k_j_in_K1 = j < num_k1_points
@@ -93,14 +240,15 @@ def hamiltonian_coulomb(data, rho):
                     if i == j:
                         continue
                     c = kArray[i] - kArray[j]
-                    q = 1 / np.linalg.norm(c)
+                    q = 1 / (np.linalg.norm(c) + 1e-12)
                     V_coulomb_ji = V_coulomb[j, i, :, nu]
                     V_coulomb_ij = V_coulomb[i, j, mu, :]
 
-                    M = rho[mapping[j, 0], mapping[j, 1], :, :] @ V_coulomb_ji  # (2,2) @ (2,) -> (2,)
-                    term = V_coulomb_ij @ M
+                    term = 0.0j
+                    for beta in range(3):
+                        for alpha in range(3):
+                            term += V_coulomb[i, j, mu, beta] * rho[mapping[j, 0], mapping[j, 1], beta, alpha] * V_coulomb[j, i, alpha, nu]
                     sum1 -= term * q
-
                 hamiltonian_coulomb[mapping[i, 0], mapping[i, 1], mu, nu] = sum1 * coulomb_const
 
     return hamiltonian_coulomb
@@ -116,7 +264,7 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
     # grid is an array contain kx and ky with N,N,2 dimensions
     # dk (1/nm)
 
-    coulomb_const = e_charge**2 / (2 * epsilon * epsilon0) * (dkx * (1e9) * dky * (1e9) / (2 * pi) ** 2)  # J/m
+    coulomb_const = e_charge**2 / (2 * epsilon * epsilon0) * (dkx * dky / (2 * pi) ** 2)  # J/m
     print(f"Coulomb constant: ", coulomb_const, "J/m")
 
     num_kcutoff, check_valid_cutoff_array = cutoff_Grid_function(N, grid, alattice)
@@ -141,11 +289,12 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
         sys.exit(1)
 
     kArray = grid[mappingArray[:, 0], mappingArray[:, 1], :]
+    print(kArray.shape)
     np.savetxt("./results/kgridcutoff.dat", kArray, delimiter=",", header="kx,ky")
-    coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 2, 2], dtype=complex)
+    coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 3, 3], dtype=complex)
     # new Coulomb with k cutoff
 
-    vecs_at_cutoff = eigenVectors[mappingArray[:, 0], mappingArray[:, 1], :, :2]
+    vecs_at_cutoff = eigenVectors[mappingArray[:, 0], mappingArray[:, 1], :, :3]
     for i in tqdm(range(num_kcutoff), desc="Calculating sum eigenvectors"):
         vec_i = vecs_at_cutoff[i]  # (4, num_orbitals)
         is_k_i_in_K1 = i < len(map_k1)
@@ -156,7 +305,7 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
                 overlap = np.conjugate(vec_i).T @ vec_j
                 coulombInteractionArray[i, j, :, :] = overlap
 
-    print(coulombInteractionArray)
+    # print(coulombInteractionArray)
 
     exch = (
         coulomb_const,
@@ -169,10 +318,11 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
     return exch
 
 
-def dipole(E, P, check_degenaracy):
+def dipole(E, p, check_degenaracy):
     N = Config.N
     hbar = Config.hbar
     me = Config.m_e
+    px, py = p
     xi_x = np.zeros([N, N, 3, 3], dtype="complex")
     xi_y = np.zeros([N, N, 3, 3], dtype="complex")
     xi = np.zeros([N, N, 3, 3, 2], dtype="complex")
@@ -183,15 +333,15 @@ def dipole(E, P, check_degenaracy):
             for m in range(0, 3):
                 for n in range(m + 1, 3):
                     if check_degenaracy[m, n] == 0:
-                        xi_x[i, j, m, n] = const * (P[i, j, m, n, 0] / (E[i, j, m] - E[i, j, n]))
-                        xi_y[i, j, m, n] = const * (P[i, j, m, n, 1] / (E[i, j, m] - E[i, j, n]))
+                        xi_x[i, j, m, n] = const * (px[i, j, m, n] / (E[i, j, m] - E[i, j, n]))
+                        xi_y[i, j, m, n] = const * (py[i, j, m, n] / (E[i, j, m] - E[i, j, n]))
 
                         xi_x[i, j, n, m] = np.conjugate(xi_x[i, j, m, n])
                         xi_y[i, j, n, m] = np.conjugate(xi_y[i, j, m, n])
 
     xi[:, :, :, :, 0] = xi_x
     xi[:, :, :, :, 1] = xi_y
-    return xi
+    return xi_x, xi_y
 
 
 def momentum(eigenVectors, grad_Ham_kx, grad_Ham_ky):
@@ -200,20 +350,17 @@ def momentum(eigenVectors, grad_Ham_kx, grad_Ham_ky):
     me = Config.m_e
     hbar = Config.hbar
 
-    momentum_px = np.zeros([N, N, 3, 3], dtype="complex")
-    momentum_py = np.zeros([N, N, 3, 3], dtype="complex")
-    p = np.zeros([N, N, 3, 3, 2], dtype="complex")
+    px = np.zeros([N, N, 3, 3], dtype="complex")
+    py = np.zeros([N, N, 3, 3], dtype="complex")
     for i in tqdm(range(N), desc="Calculating momentum"):
         for j in range(N):
             c = eigenVectors[i, j, :, :]
             cdagger = np.conjugate(c).T
-            momentum_px[i, j, :, :] = cdagger @ (grad_Ham_kx[i, j, :, :] @ c)
-            momentum_py[i, j, :, :] = cdagger @ (grad_Ham_ky[i, j, :, :] @ c)
-    momentum_px = momentum_px * (me / hbar)
-    momentum_py = momentum_py * (me / hbar)
-    p[:, :, :, :, 0] = momentum_px
-    p[:, :, :, :, 1] = momentum_py
-    return p
+            px[i, j, :, :] = cdagger @ (grad_Ham_kx[i, j, :, :] @ c)
+            py[i, j, :, :] = cdagger @ (grad_Ham_ky[i, j, :, :] @ c)
+    px = px * (me / hbar)
+    py = py * (me / hbar)
+    return px, py
 
 
 def cutoff_Grid_function(N, grid, alattice) -> Tuple[int, NDArray[np.bool_]]:

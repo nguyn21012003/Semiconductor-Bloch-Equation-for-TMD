@@ -1,11 +1,13 @@
 import numpy as np
+
 from settings.configs import Config
+
 import csv
 
 
 def Et(t, w0):
     E0 = Config.E0
-    td = Config.time_duration
+    td = Config.time_duration * 1e-15
     epl = Config.epl
 
     env = E0 * np.exp(-(t**2) / td**2)
