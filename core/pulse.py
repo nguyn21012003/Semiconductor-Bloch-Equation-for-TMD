@@ -3,15 +3,12 @@ from settings.configs import Config
 import csv
 
 
-def Et(t, w0):
-    E0 = Config.E0
-    td = Config.time_duration
-    epl = Config.epl
+def Et(t, E0, t_L):
 
-    env = E0 * np.exp(-(t**2) / td**2)
+    env = E0 * np.exp(-(t**2) / t_L**2)
 
-    Ex = env * np.cos(w0 * t) / np.sqrt(1.0 + epl**2)
-    Ey = env * np.sin(w0 * t) * epl / np.sqrt(1.0 + epl**2)
+    Ex = env
+    Ey = 0
 
     return Ex, Ey
 
