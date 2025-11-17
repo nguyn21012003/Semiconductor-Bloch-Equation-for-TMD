@@ -37,7 +37,7 @@ def paraNN(material: str, modelApprox: str) -> dict[str,float]:
 
     data = {
         "material": matt[choice],
-        "alattice": alattice,
+        "alattice": alattice * 1e-1,
         "e1": e1,
         "e2": e2,
         "t0": t0,
@@ -124,7 +124,7 @@ def paraTNN(material: str, modelApprox: str) -> dict[str,float]:
 
     data = {
         "material": matt[choice],
-        "alattice": a,
+        "alattice": a*1e-1,
         "e1": e1,
         "e2": e2,
         "t0": t0,
