@@ -17,7 +17,7 @@ def Rhombus(alattice: float, N: int):
     for i in tqdm(range(N), desc="Create k grid", colour="red"):
         for j in range(N):
             akx[i][j] = sqrt(3) / 2 * (ak1[i] + ak2[j])
-            aky[i][j] = -1 / 2 * (ak1[i] - ak2[j]) * 0
+            aky[i][j] = -1 / 2 * (ak1[i] - ak2[j])
 
     kArr[:, :, 0] = akx
     kArr[:, :, 1] = aky
@@ -48,4 +48,31 @@ def Monkhorst(alattice: float, N: int):
     return kArr, dkx, dky
 
 
+def Cartesian(alattice: float, N: int):
+    B = np.array(
+        [
+            [2.0 * pi / alattice, 2.0 * pi / alattice],
+            [2.0 * pi / (sqrt(3) * alattice), -2.0 * pi / (sqrt(3) * alattice)],
+        ]
+    )
+    c_coord = np.linspace(0.0, 1.0, N)
+    c1, c2 = np.meshgrid(c_coord, c_coord, indexing="ij")
+    kx_unscaled = B[0, 0] * c1 + B[0, 1] * c2
+    ky_unscaled = B[1, 0] * c1 + B[1, 1] * c2
 
+    kx = kx_unscaled - 2.0 * pi / alattice
+    ky = ky_unscaled - 0.0
+    kArr = np.stack([kx, ky], axis=-1)
+
+    k1max = (2.0 * pi) / (sqrt(3) * alattice)
+    k2max = (2.0 * pi) / (sqrt(3) * alattice)  # Fortran dùng K2max, giả sử là k2max
+
+    dk1 = 2.0 * k1max / (N - 1)
+    dk2 = 2.0 * k2max / (N - 1)
+
+    k1_arr = -k1max + np.arange(N) * dk1
+    k2_arr = -k2max + np.arange(N) * dk2
+
+    dkx = abs(sqrt(3) * (k1_arr[0] + k2_arr[0]) / 2.0 - sqrt(3) * (k1_arr[1] + k2_arr[0]) / 2.0)
+    dky = abs((k2_arr[0] - k1_arr[0]) / 2.0 - (k2_arr[0] - k1_arr[1]) / 2.0)
+    return kArr, dkx, dky
