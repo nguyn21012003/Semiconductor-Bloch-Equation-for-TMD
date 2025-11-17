@@ -37,41 +37,28 @@ import numpy as np
 
 @dataclass
 class Config:
-    # --- Thông số Chung ---
     time_run = datetime.now().strftime("%a-%m-%d")
-    neighbor = "NN"
+    neighbor = "TNN"
     approx = "GGA"
     base_dir = f"./results/{time_run}/{neighbor}"
-
-    # --- Hằng số VẬT LÝ (ĐÃ CHUYỂN ĐỔI sang đơn vị eV, fs, nm) ---
+    #################################################################
     h: float = 4.135667696  # Đơn vị: eV * fs (Planck's constant)
     hbar: float = h / (2 * pi)  # Đơn vị: eV * fs (Giá trị ~0.6582)
-
     m_e: float = 5.68563  # Đơn vị: eV*fs^2/nm^2
-
-    e_charge: float = 1.0  # Đơn vị: e (điện tích cơ bản)
-
+    e_charge: float = -1.0  # Đơn vị: e (điện tích cơ bản)
     phi_0: float = h / e_charge  # Đơn vị: eV*fs/e
     isMatrixTransform: bool = True
     qmax: int = 797  # default qmax
-
     varepsilon: float = 2.5  # Hằng số điện môi (không đơn vị)
-
     varepsilon0: float = 0.05526349  # Đơn vị: e^2/(eV*nm)
-
-    N: int = 101  # Giống nkamax
+    N: int = 100  # Giống nkamax
     rkcutoff: float = 3.0
-    detuning: float = 1e-3  # Đơn vị: eV
-
+    detuning: float = 10e-3  # Đơn vị: eV
     gamma: float = 65.0  # Đơn vị: nm^3/fs
-
-    T_cohenrent: float = 20.0  # Đơn vị: fs (T2)
-
-    E0: float = 1e6 * 1e-7  # Đơn vị: V/nm (0.1)
-    time_duration: float = 5.0  # Đơn vị: fs (td)
-
-    epl: float = 1.0  # Phân cực tròn (Circular polarized)
-
-    tmin: float = -4.0 * (time_duration / np.sqrt(2 * np.log(2)))  # Đơn vị: fs
+    T_cohenrent: float = 30.0  # Đơn vị: fs (T2)
+    E0: float = 2.2e-3  # Đơn vị: V/nm (0.01)
+    time_duration: float = 6.0  # Đơn vị: fs, hay còn gọi là bề rộng sung
+    epl: float = 0.0  # Phân cực tròn (Circular polarized)
+    tmin: float = -50  # Đơn vị: fs
     tmax: float = 1000.0  # Đơn vị: fs
-    dt: float = 0.02  # Đơn vị: fs
+    dt: float = 0.05  # Đơn vị: fs
