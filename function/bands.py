@@ -46,9 +46,7 @@ def calcBandstructure(data, modelNeighbor):
         for j in range(N):
             alpha = karr[i, j, 0] / 2 * alattice
             beta = sqrt(3) / 2 * karr[i, j, 1] * alattice
-            ham,dhamkx,dhamky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor,alattice)
+            ham, dhkx, dhky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
             vals = np.linalg.eigvalsh(ham)
             eigenValues[i, j, :] = vals
-    Egap = np.min(eigenValues[:, :, 1]) - np.max(eigenValues[:, :, 0])
-    print(Egap)
     return karr, eigenValues
