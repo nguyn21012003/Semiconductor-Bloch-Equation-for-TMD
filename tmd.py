@@ -29,7 +29,7 @@ class Material:
 
     def bandstructure(self, fileMaterial):
         data = getParams(self.name, self.modelNeighbor, self.modelApprox)
-        writeBandstructure(data, self.modelNeighbor, fileMaterial)
+        writeBandstructure(data, self.name, self.modelNeighbor, fileMaterial)
 
     def draw_bands(self, fileMaterial, fileDraw, dir):
         """This is optional, if u want to draw band then use this"""
@@ -43,8 +43,6 @@ class Material:
 
 
 def main():
-    cfg = Config()
-    base_dir = cfg.base_dir
     isMatrixTransform = cfg.isMatrixTransform
     os.makedirs(base_dir, exist_ok=True)
 

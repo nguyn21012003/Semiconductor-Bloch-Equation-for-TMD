@@ -19,47 +19,39 @@ def Hartree_Fock_func(data, modelNeighbor):
     alattice = data["alattice"]
     N = Config.N
     detuning = Config.detuning
-    e_charge = Config.e_charge
 
-    grid, dkx, dky = genGrid.Rhombus(alattice, N)
+    grid, dkx, dky = genGrid.Monkhorst(alattice, N)
     print(f"dkx:{dkx},\ndky:{dky}")
     print(f"Grid dim:{grid.shape}")
 
     plot_grid(grid, "kgrid.dat")
     eigenValues, eigenVectors, pmx, pmy = solveHamiltonian(data, grid, modelNeighbor)
 
-    egap = np.min(eigenValues[:, :, 1]) - np.max(eigenValues[:, :, 0])
+    egap = np.min(eigenValues[:, :, 2]) - np.max(eigenValues[:, :, 1])
     print(f"Energy gap: ", egap, "eV", "\n")
     print(f"Detuning: ", detuning, "eV")
 
     w0 = (egap) / Config.hbar
     print(f"Frequency: ", w0)
-    # vector_pot = pulse.At(w0)
 
-    check_degenaracy = np.zeros([3, 3])
+    check_degenaracy = np.zeros([6, 6])
     for i in tqdm(range(N), desc="Check degenaracy"):
         for j in range(N):
-            for nu in range(0, 3):
-                for mu in range(0, 3):
+            for nu in range(0, 6):
+                for mu in range(0, 6):
                     if np.abs(eigenValues[i, j, nu] - eigenValues[i, j, mu]) < 1e-2:
                         check_degenaracy[mu, nu] += 1
     dk = (dkx, dky)
     dk2 = dkx * dky
-    # print(check_degenaracy)
     ################################################################# Post SBE
-    # p = momentum(eigenVectors, grid, data, modelNeighbor)
     p = (pmx, pmy)
     xi = dipole(eigenValues, p, check_degenaracy)
-    xiovx = np.zeros([N, N, 3, 3], dtype="complex")
-    xiovy = np.zeros([N, N, 3, 3], dtype="complex")
-    xiovx[:, :, :, :] = (xi[:, :, :, :, 0] + xi[:, :, :, :, 1]) / sqrt(3)
-    xiovy[:, :, :, :] = (-xi[:, :, :, :, 0] + xi[:, :, :, :, 1]) / sqrt(3)
 
     ################################################################# SBE
-    rho = np.zeros([N, N, 3, 3], dtype="complex")
+    rho = np.zeros([N, N, 6, 6], dtype="complex")
     # note: chua co spin nen chi xet la 2, co spin thi la 4
     rho[:, :, 0, 0] = 1.0 + 0.0j
-    # rho[:, :, 1, 1] = 0.0 + 0.0j
+    rho[:, :, 1, 1] = 1.0 + 0.0j
 
     tmin = Config.tmin
     print(f"tmin:", tmin)
@@ -70,8 +62,7 @@ def Hartree_Fock_func(data, modelNeighbor):
     E0 = Config.E0
     ntmax = int((tmax - tmin) / dt)
 
-    # data_Coulomb = Coulomb(alattice, eigenVectors, grid, dk)
-    data_Coulomb = None
+    data_Coulomb = Coulomb(alattice, eigenVectors, grid, dk)
     ############################################################ Calculating SBE
     P_t_array = np.zeros([ntmax, 2], dtype="complex")  # Save P(t)
     time_array = np.zeros(ntmax, dtype=float)
@@ -83,20 +74,13 @@ def Hartree_Fock_func(data, modelNeighbor):
         Atx = Config.e_charge / Config.m_e * (Atx - Etx * dt)
         Aty = Config.e_charge / Config.m_e * (Aty - Ety * dt)
         Atime = (Atx, Aty)
+
         rho = rk4(rho, t, dt, Etime, Atime, xi, p, dk, data_Coulomb, eigenValues, w0)
-        sum1 = 0j
-        sum2 = 0j
-        for jb in [0]:
-            for ib in [1, 2]:
-                sum1 += np.sum(xiovx[:, :, jb, ib] * rho[:, :, ib, jb])
-                sum2 += np.sum(xiovy[:, :, jb, ib] * rho[:, :, ib, jb])
+        Pxt, Pyt = totalPolarizationFunction(rho, xi, dk)
 
-        Px = -sum1 * dk2 / (4.0 * pi**2)
-        Py = -sum2 * dk2 / (4.0 * pi**2)
-
+        P_t_array[nt, 0] = Pxt
+        P_t_array[nt, 1] = Pyt
         time_array[nt] = t
-        P_t_array[nt, 0] = Px
-        P_t_array[nt, 1] = Py
         t += dt
 
     print(time_array)
@@ -158,23 +142,18 @@ def absorptionSpectra(P_t_array, egap, evoltime):
 
 
 def totalPolarizationFunction(rho, xi, dk):
-    qe = Config.e_charge
-    xi_x, xi_y = xi
+    sum1 = 0j
+    sum2 = 0j
     dkx, dky = dk
-    c = dkx * dky / (2 * pi) ** 2
-    N = Config.N
-    s1 = 0.0
-    s2 = 0.0
-    for nk1 in range(N):
-        for nk2 in range(N):
-            for nu in range(3):
-                for mu in range(nu + 1, 3):
-                    s1 += 2.0 * np.real(xi_x[nk1, nk2, mu, nu] * rho[nk1, nk2, nu, mu])
-                    s2 += 2.0 * np.real(xi_y[nk1, nk2, mu, nu] * rho[nk1, nk2, nu, mu])
+    dk2 = dkx * dky
+    for jb in [0, 1]:
+        for ib in [2, 3, 4, 5]:
+            sum1 += np.sum(xi[:, :, jb, ib, 0] * rho[:, :, ib, jb])
+            sum2 += np.sum(xi[:, :, jb, ib, 1] * rho[:, :, ib, jb])
 
-    Px_t = qe * s1 * c
-    Py_t = qe * s2 * c
-    return Px_t, Py_t
+    Px = -sum1 * dk2 / (4.0 * pi**2)
+    Py = -sum2 * dk2 / (4.0 * pi**2)
+    return Px, Py
 
 
 def rk4(rho, t, dt, Et, At, xi, p, dk, exchange_term, E, w0):
@@ -189,20 +168,16 @@ def rk4(rho, t, dt, Et, At, xi, p, dk, exchange_term, E, w0):
 def rhsSBE(rho, t, Et, At, xiov, p, dk, E, omega_L, exchange_term):
     Etx, Ety = Et
     N = Config.N
-    Y = np.zeros((N, N, 3, 3), dtype="complex")
+    Y = np.zeros((N, N, 6, 6), dtype="complex")
     T2 = Config.T_cohenrent
-    eE1 = Etx / (sqrt(3))
-    eE2 = Etx / (sqrt(3))
-    # xi_1 = sqrt(3) / 2 * xi_x - 0.5 * xi_y
-    # xi_2 = sqrt(3) / 2 * xi_x + 0.5 * xi_y
-    # hfse = hamiltonian_coulomb(exchange_term, rho, N)
-    for m in range(1):
-        for n in range(1, 3):
+    hfse = hamiltonian_coulomb(exchange_term, rho, N)
+    for m in [0, 1]:
+        for n in [2, 3, 4, 5]:
             omegaCV = (E[:, :, n] - E[:, :, m]) / Config.hbar
             omegaRabi = (Etx * xiov[:, :, n, m, 0] + Ety * xiov[:, :, n, m, 1]) / Config.hbar
             # omegaRabi = (Atx * px[:, :, n, m] + Aty * py[:, :, n, m]) / (Config.hbar * me)
-            # omegaHF = hfse[:, :, n, m] / Config.hbar
-            Y[:, :, n, m] = -1j * (omegaCV - omega_L) * rho[:, :, n, m] - 1j * omegaRabi - rho[:, :, n, m] / T2
+            omegaHF = hfse[:, :, n, m] / Config.hbar
+            Y[:, :, n, m] = -1j * (omegaCV - omega_L) * rho[:, :, n, m] + 1j * omegaHF - 1j * omegaRabi - rho[:, :, n, m] / T2
             Y[:, :, m, n] = np.conjugate(Y[:, :, n, m])
 
     return Y
@@ -224,10 +199,10 @@ def hamiltonian_coulomb(data, rho, N):
         V_coulomb,
         check_valid_cutoff_array,
     ) = data
-    hamiltonian_coulomb = np.zeros((N, N, 3, 3), dtype=np.complex128)
+    hamiltonian_coulomb = np.zeros((N, N, 6, 6), dtype=np.complex128)
     for i in nb.prange(num_kcutoff):
-        for mu in range(0, 2):
-            for nu in range(mu, 2):
+        for mu in [0, 1]:
+            for nu in [2, 3, 4, 5]:
                 sum1 = 0.0j
                 for j in range(num_kcutoff):
                     state1 = check_valid_cutoff_array[mapping[i, 0], mapping[i, 1], 0]
@@ -246,8 +221,8 @@ def hamiltonian_coulomb(data, rho, N):
                     kyj = grid[mapping[j, 0], mapping[j, 1], 1]
                     q = 1.0 / (np.sqrt((kxj - kxi) ** 2 + (kyj - kyi) ** 2))
 
-                    for beta in range(2):
-                        for alpha in range(2):
+                    for beta in range(4):
+                        for alpha in range(4):
                             if alpha != beta:
                                 sum1 -= (V_coulomb[i, j, mu, beta] * rho[mapping[j, 0], mapping[j, 1], beta, alpha] * V_coulomb[j, i, alpha, nu]) * q
                 hamiltonian_coulomb[mapping[i, 0], mapping[i, 1], mu, nu] = sum1 * coulomb_const
@@ -257,7 +232,7 @@ def hamiltonian_coulomb(data, rho, N):
     return hamiltonian_coulomb
 
 
-def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
+def Coulomb(alattice: str, eigenVectors, grid, dk):
     dkx, dky = dk
     N = Config.N
     epsilon = Config.varepsilon
@@ -296,19 +271,7 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
 
     kArray = grid[mappingArray[:, 0], mappingArray[:, 1], :]
     np.savetxt("./results/kgridcutoff.dat", kArray, delimiter=",", header="kx,ky")
-    coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 3, 3], dtype=complex)
-    # new Coulomb with k cutoff
-
-    vecs_at_cutoff = eigenVectors[mappingArray[:, 0], mappingArray[:, 1], :, :3]
-    # for i in tqdm(range(num_kcutoff), desc="Calculating sum eigenvectors"):
-    #     vec_i = vecs_at_cutoff[i]  # (4, num_orbitals)
-    #     is_k_i_in_K1 = i < len(map_k1)
-    #     for j in range(num_kcutoff):
-    #         is_k_j_in_K1 = j < len(map_k1)
-    #         if is_k_i_in_K1 == is_k_j_in_K1:
-    #             vec_j = vecs_at_cutoff[j]  # (4, num_orbitals)
-    #             overlap = np.conjugate(vec_i).T @ vec_j
-    #             coulombInteractionArray[i, j, :, :] = overlap
+    coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 6, 6], dtype=complex)
 
     for i in tqdm(range(num_kcutoff), desc="Calculating sum eigenvectors"):
         for j in range(num_kcutoff):
@@ -321,9 +284,9 @@ def Coulomb(alattice: str, eigenVectors: NDArray[np.complex128], grid, dk):
                 cj = eigenVectors[mappingArray[j, 0], mappingArray[j, 1], :, :]
                 ci = eigenVectors[mappingArray[i, 0], mappingArray[i, 1], :, :]
                 S = np.conjugate(cj).T @ ci
-                for m in range(2):
-                    for n in range(2):
-                        coulombInteractionArray[j, i, m, n] = S[m, n]
+                for m in range(4):
+                    for n in range(4):
+                        coulombInteractionArray[i, j, m, n] = S[m, n]
 
     # print(coulombInteractionArray)
 
@@ -344,12 +307,12 @@ def dipole(E, p, check_degenaracy):
     hbar = Config.hbar
     me = Config.m_e
     px, py = p
-    xi = np.zeros([N, N, 3, 3, 2], dtype="complex")
+    xi = np.zeros([N, N, 6, 6, 2], dtype="complex")
 
     const = -1j * hbar / me
-    for m in tqdm([0, 1, 2], desc="Dipole"):
-        for n in [0, 1, 2]:
-            if m != n:
+    for m in tqdm(range(6), desc="Dipole"):
+        for n in range(m + 1, 6):
+            if check_degenaracy[m, n] == 0:
                 xi[:, :, m, n, 0] = const * (px[:, :, m, n] / (E[:, :, m] - E[:, :, n]))
                 xi[:, :, m, n, 1] = const * (py[:, :, m, n] / (E[:, :, m] - E[:, :, n]))
 
@@ -358,32 +321,6 @@ def dipole(E, p, check_degenaracy):
 
     # return xi_x, xi_y
     return xi
-
-
-def momentum_old(eigenVectors, grid, data, modelNeighbor):
-    N = Config.N
-    me = Config.m_e
-    hbar = Config.hbar
-    alattice = data["alattice"]
-
-    px = np.zeros([N, N, 3, 3], dtype="complex")
-    py = np.zeros([N, N, 3, 3], dtype="complex")
-    # for i in tqdm(range(N), desc="Calculating momentum"):
-    #     for j in range(N):
-    for i in tqdm(range(N), desc="Calculating momentum"):
-        for j in range(N):
-            alpha = grid[i, j, 0] / 2 * alattice
-            beta = sqrt(3) / 2 * grid[i, j, 1] * alattice
-
-            _, dhkx, dhky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
-            c = eigenVectors[i, j, :, :]
-            cdagger = np.conjugate(c)
-            px[i, j, :, :] = cdagger @ (dhkx[:, :] @ c)
-            py[i, j, :, :] = cdagger @ (dhky[:, :] @ c)
-    px = px * (me / hbar)
-    py = py * (me / hbar)
-
-    return px, py
 
 
 def cutoff_Grid_function(N, grid, alattice) -> Tuple[int, NDArray[np.bool_]]:
@@ -459,59 +396,6 @@ def cutoff_Grid_function(N, grid, alattice) -> Tuple[int, NDArray[np.bool_]]:
     return count, check_valid_cutoff_grid
 
 
-def solveHamiltonian_Numerical(data, kArray, modelNeighbor, delta_k: float = 1e-6) -> Tuple[
-    NDArray[np.float64],
-    NDArray[np.complex128],
-    NDArray[np.complex128],
-    NDArray[np.complex128],
-]:
-    N = Config.N
-    alattice = data["alattice"]
-
-    eigenValues = np.zeros([N, N, 3])
-    eigenVectors = np.zeros([N, N, 3, 3], dtype="complex")
-    dH_kx = np.zeros([N, N, 3, 3], dtype="complex")
-    dH_ky = np.zeros([N, N, 3, 3], dtype="complex")
-
-    a_over_2 = alattice / 2.0
-    sqrt3_a_over_2 = sqrt(3) / 2.0 * alattice
-
-    for i in tqdm(range(N), desc="Calculate bandstructure (Numerical Grad)"):
-        for j in range(N):
-            kx = kArray[i, j, 0]
-            ky = kArray[i, j, 1]
-
-            alpha_mid = kx * a_over_2
-            beta_mid = ky * sqrt3_a_over_2
-
-            ham, _, _ = tbm_Hamiltonian(alpha_mid, beta_mid, data, modelNeighbor, alattice)
-
-            vals, vecs = np.linalg.eigh(ham)
-            eigenVectors[i, j, :, :] = vecs
-            eigenValues[i, j, :] = vals
-
-            alpha_plus_x = (kx + delta_k) * a_over_2
-            ham_plus_x, _, _ = tbm_Hamiltonian(alpha_plus_x, beta_mid, data, modelNeighbor, alattice)
-
-            alpha_minus_x = (kx - delta_k) * a_over_2
-            ham_minus_x, _, _ = tbm_Hamiltonian(alpha_minus_x, beta_mid, data, modelNeighbor, alattice)
-
-            dH_kx[i, j, :, :] = (ham_plus_x - ham_minus_x) / (2.0 * delta_k)
-
-            beta_plus_y = (ky + delta_k) * sqrt3_a_over_2
-            ham_plus_y, _, _ = tbm_Hamiltonian(alpha_mid, beta_plus_y, data, modelNeighbor, alattice)
-
-            beta_minus_y = (ky - delta_k) * sqrt3_a_over_2
-            ham_minus_y, _, _ = tbm_Hamiltonian(alpha_mid, beta_minus_y, data, modelNeighbor, alattice)
-
-            dH_ky[i, j, :, :] = (ham_plus_y - ham_minus_y) / (2.0 * delta_k)
-
-            del vals, vecs, ham
-            del ham_plus_x, ham_minus_x, ham_plus_y, ham_minus_y
-
-    return eigenValues, eigenVectors, dH_kx, dH_ky
-
-
 def solveHamiltonian(data, kArray, modelNeighbor) -> Tuple[
     NDArray[np.float64],
     NDArray[np.complex128],
@@ -524,38 +408,53 @@ def solveHamiltonian(data, kArray, modelNeighbor) -> Tuple[
     hbar = Config.hbar
     # grid K phai chay lai moi lan do khac alattice
 
-    eigenValues = np.zeros([N, N, 3])
-    eigenVectors = np.zeros([N, N, 3, 3], dtype="complex")
-    pmx = np.zeros([N, N, 3, 3], dtype="complex")
-    pmy = np.zeros([N, N, 3, 3], dtype="complex")
-    # for i in tqdm(range(N), desc="Calculate bandstructure"):
-    #     for j in range(N):
-    #         alpha = kArray[i, j, 0] / 2 * alattice
-    #         beta = sqrt(3) / 2 * kArray[i, j, 1] * alattice
-    #         ham, dhkx, dhky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
-    #         vals, vecs = np.linalg.eigh(ham)
-    #         eigenVectors[i, j, :, :] = vecs
-    #         eigenValues[i, j, :] = vals
-    #         dH_kx[i, j, :, :] = dhkx
-    #         dH_ky[i, j, :, :] = dhky
-    #         del vals, vecs, dhkx, dhky
+    eigenValues = np.zeros([N, N, 6])
 
+    eigenVectors = np.zeros([N, N, 6, 6], dtype="complex")
+    pmx = np.zeros([N, N, 6, 6], dtype="complex")
+    pmy = np.zeros([N, N, 6, 6], dtype="complex")
+
+    ham_spin = np.zeros([6, 6], dtype="complex")
+    dhkx_spin = np.zeros([6, 6], dtype="complex")
+    dhky_spin = np.zeros([6, 6], dtype="complex")
     for j in tqdm(range(N), desc="Calculate bandstructure"):
         for i in range(N):
             alpha = kArray[i, j, 0] / 2 * alattice
             beta = sqrt(3) / 2 * kArray[i, j, 1] * alattice
-            ham, dhkx, dhky = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
-            vals, vecs = np.linalg.eigh(ham)
-            for jb in range(0, 3):
-                eigenValues[i, j, jb] = vals[jb]
-                for ib in range(0, 3):
-                    sum1 = 0j
-                    sum2 = 0j
-                    for jjb in range(0, 3):
-                        for iib in range(0, 3):
-                            sum1 += np.conjugate(vecs[iib, ib]) * dhkx[iib, jjb] * vecs[jjb, jb]
-                            sum2 += np.conjugate(vecs[iib, ib]) * dhky[iib, jjb] * vecs[jjb, jb]
-                    pmx[i, j, ib, jb] = sum1 * me / hbar
-                    pmy[i, j, ib, jb] = sum2 * me / hbar
+            ham, dhkx, dhky, hamu, hamd = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
+            # vals, vecs = np.linalg.eigh(ham)
+            ############ co xet spin
+            ham_spin[0:3, 0:3] = hamu
+            ham_spin[3:6, 3:6] = hamd
+
+            dhkx_spin[0:3, 0:3] = dhkx
+            dhkx_spin[3:6, 3:6] = dhkx
+
+            dhky_spin[0:3, 0:3] = dhky
+            dhky_spin[3:6, 3:6] = dhky
+
+            vals, vecs = np.linalg.eigh(ham_spin)
+
+            eigenValues[i, j, :] = vals
+            eigenVectors[i, j, :, :] = vecs
+
+            V_H = vecs.conj().T
+            pmx_matrix = V_H @ dhkx_spin @ vecs
+            pmy_matrix = V_H @ dhky_spin @ vecs
+
+            pmx[i, j, :, :] = pmx_matrix * me / hbar
+            pmy[i, j, :, :] = pmy_matrix * me / hbar
+            ########################################### Code o tren tuong duong code o duoi
+            # for jb in range(0, 6):
+            #     eigenValues[i, j, jb] = vals[jb]
+            #     for ib in range(0, 6):
+            #         sum1 = 0j
+            #         sum2 = 0j
+            #         for jjb in range(0, 6):
+            #             for iib in range(0, 6):
+            #                 sum1 += np.conjugate(vecs[iib, ib]) * dhkx_spin[iib, jjb] * vecs[jjb, jb]
+            #                 sum2 += np.conjugate(vecs[iib, ib]) * dhky_spin[iib, jjb] * vecs[jjb, jb]
+            #         pmx[i, j, ib, jb] = sum1 * me / hbar
+            #         pmy[i, j, ib, jb] = sum2 * me / hbar
 
     return eigenValues, eigenVectors, pmx, pmy

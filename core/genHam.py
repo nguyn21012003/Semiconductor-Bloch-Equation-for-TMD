@@ -1,13 +1,13 @@
-from numpy import exp, sqrt
-
 from core.irrMatrix import IR, IRNN, IRTNN
 from core.irrMatrixTransform import IR as IR_tran
 from core.irrMatrixTransform import IRNN as IRNN_tran
 from core.irrMatrixTransform import IRTNN as IRTNN_tran
+from numpy import exp, sqrt
+import numpy as np
 
 
 def tbm_Hamiltonian(alpha, beta, data, modelNeighbor, a):
-    E0, h1, h2, h3, h4, h5, h6 = IR_tran(data)
+    E0, h1, h2, h3, h4, h5, h6 = IR(data)
     ham = (
         E0
         + exp(2j * alpha) * h1
@@ -17,6 +17,10 @@ def tbm_Hamiltonian(alpha, beta, data, modelNeighbor, a):
         + exp(1j * (-alpha + beta)) * h5
         + exp(1j * (alpha + beta)) * h6
     )
+    Lz = np.zeros((3, 3), dtype="complex")
+    Lz[1, 2] = 2j
+    Lz[2, 1] = -2j
+    lamb = data["lam"]
     dhkx = (
         1j * a * exp(1j * 2 * alpha) * h1
         + 1j * a / 2 * exp(1j * (alpha - beta)) * h2
@@ -33,8 +37,8 @@ def tbm_Hamiltonian(alpha, beta, data, modelNeighbor, a):
     )
 
     if modelNeighbor == "TNN":
-        o1, o2, o3, o4, o5, o6 = IRTNN_tran(data)
-        v1, v2, v3, v4, v5, v6 = IRNN_tran(data)
+        o1, o2, o3, o4, o5, o6 = IRTNN(data)
+        v1, v2, v3, v4, v5, v6 = IRNN(data)
 
         ham += (
             +exp(4j * alpha) * o1
@@ -86,4 +90,7 @@ def tbm_Hamiltonian(alpha, beta, data, modelNeighbor, a):
             )
         )
 
-    return ham,dhkx,dhky
+    hamu = ham + lamb / 2 * Lz
+    hamd = ham - lamb / 2 * Lz
+
+    return ham, dhkx, dhky, hamu, hamd
