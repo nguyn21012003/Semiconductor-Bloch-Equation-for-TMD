@@ -503,12 +503,39 @@ Kết hợp phương trình \eqref{eq: equation of motion in HF with Coulomb} v�
 		\frac{d}{dt} \rho_{\lambda \lambda'}(\mathbf{k})
 		& = - \frac{i}{\hbar} ( \mathcal{E}_{\lambda}(\mathbf{k}) - \mathcal{E}_{\lambda'}(\mathbf{k}) ) \rho_{\lambda \lambda'}(\mathbf{k}) \\
 		& \quad + \frac{i}{\hbar} \sum_{\mu} \left[ \Sigma_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu} \Sigma_{\mu \lambda'}(\mathbf{k})  \right] \\
-		& - \frac{ie}{\hbar} \mathbf{E}(t) \cdot \sum_{ \mu } \left( \boldsymbol{\xi}_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu}(\mathbf{k}) \boldsymbol{\xi}_{\mu \lambda'}(\mathbf{k})\right) + \frac{e}{\hbar} \mathbf{E}(t) \cdot \nabla_{\mathbf{k}} \rho_{\lambda \lambda'}(\mathbf{k}) \\
-		& =  - \frac{i}{\hbar} ( \mathcal{E}_{\lambda}(\mathbf{k}) - \mathcal{E}_{\lambda'}(\mathbf{k}) ) \rho_{\lambda \lambda'}(\mathbf{k}) \\
-		& \quad - i \sum_{\mu} \left( \Omega_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu}(\mathbf{k}) \Omega_{\mu \lambda'}(\mathbf{k}) \right) + \frac{e}{\hbar} \mathbf{E}(t) \cdot \nabla_{\mathbf{k}} \rho_{\lambda \lambda'}(\mathbf{k}) .
+		& \quad - \frac{ie}{\hbar} \mathbf{E}(t) \cdot \sum_{ \mu } \left( \boldsymbol{\xi}_{\lambda \mu}(\mathbf{k}) \rho_{\mu \lambda'}(\mathbf{k}) - \rho_{\lambda \mu}(\mathbf{k}) \boldsymbol{\xi}_{\mu \lambda'}(\mathbf{k})\right) + \frac{e}{\hbar} \mathbf{E}(t) \cdot \nabla_{\mathbf{k}} \rho_{\lambda \lambda'}(\mathbf{k}).
 	\end{aligned}
 	\label{eq: equation of motion in HF general in LG}
 \end{equation} 
+đổi các chỉ số $\lambda \to v, \lambda' \to c$
+\begin{equation}
+	\begin{aligned}
+		\frac{d}{dt} \rho_{vc}(\mathbf{k})
+		& =  \frac{i}{\hbar} \left( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) \right)  \rho_{v c}(\mathbf{k}) \\
+		& \quad + \frac{i}{\hbar} \sum_{\mu} [ \Sigma_{v\mu}(\mathbf{k}) \rho_{\mu c}(\mathbf{k}) - \rho_{v \mu} \Sigma_{\mu c}(\mathbf{k})]\\
+		&\quad -\frac{ie}{\hbar} \mathbf{E}(t) \cdot \sum_{ \mu } \left( \boldsymbol{\xi}_{v \mu}(\mathbf{k}) \rho_{\mu c}(\mathbf{k}) - \rho_{v \mu}(\mathbf{k}) \boldsymbol{\xi}_{\mu c}(\mathbf{k}) \right) \\
+		& = \frac{i}{\hbar} \left( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) \right)  \rho_{v c}(\mathbf{k}) \\
+		& \quad + \frac{i}{\hbar} [ \Sigma_{v v}(\mathbf{k}) \rho_{v c}(\mathbf{k}) - \cancelto{1}{\rho_{vv}(\mathbf{k})} \quad \Sigma_{vc}(\mathbf{k}) + \Sigma_{vc}(\mathbf{k}) \cancelto{0}{\rho_{cc}(\mathbf{k})} - \rho_{vc}(\mathbf{k}) \Sigma_{cc}(\mathbf{k}) ] \\
+		&  \quad - \frac{ie}{\hbar} \mathbf{E}(t) \cdot \left( \boldsymbol{\xi}_{vv}(\mathbf{k}) \rho_{vc}(\mathbf{k}) - \rho_{vv}(\mathbf{k}) \boldsymbol{\xi}_{vc}(\mathbf{k}) + \boldsymbol{\xi}_{vc}(\mathbf{k}) \rho_{cc}(\mathbf{k}) - \rho_{vc}(\mathbf{k}) \boldsymbol{\xi}_{cc}(\mathbf{k}) \right) \\
+		& = \frac{i}{\hbar} \left( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) \right)  \rho_{v c}(\mathbf{k}) + \frac{ie}{\hbar} \mathbf{E}(t) \cdot \boldsymbol{\xi}_{vc}(\mathbf{k}) - \frac{i}{\hbar} \Sigma_{vc}(\mathbf{k}) \\
+		& = \frac{i}{\hbar} \left( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) \right)  \rho_{v c}(\mathbf{k}) + \frac{ie}{\hbar} \mathbf{E}(t) \cdot \boldsymbol{\xi}_{vc}(\mathbf{k}) - \frac{i}{\hbar} \sum_{\alpha \beta \mathbf{q}} V_{\mathbf{k}, \mathbf{k} + \mathbf{q}, \mathbf{q}}^{\alpha v \beta c} \rho_{\mathbf{k} + \mathbf{q}}^{\beta \alpha} \\
+	\end{aligned}
+\end{equation}
+\begin{equation}
+	\begin{aligned}
+		\frac{d}{dt} \rho_{vc}(\mathbf{k})
+		& = \frac{i}{\hbar} \left( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) \right)  \rho_{v c}(\mathbf{k}) + \frac{ie}{\hbar} \mathbf{E}(t) \cdot \boldsymbol{\xi}_{vc}(\mathbf{k}) \\
+		&\quad- \frac{i}{\hbar} \sum_{c' v' \mathbf{k}'} V_{c' v v' c}(\mathbf{k}, \mathbf{k}', \mathbf{k}' - \mathbf{k}) \rho_{v'c'}(\mathbf{k}') \\
+	\end{aligned}
+\end{equation}
+trong đó 
+\begin{equation}
+	\begin{aligned}
+		V_{\lambda_{1} \lambda_{2} \lambda_{3} \lambda_{4}} (\mathbf{k}, \mathbf{k}', \mathbf{k}' - \mathbf{k})
+		& = \frac{e^{2}}{2 \varepsilon \varepsilon_{0} L^{2}} \frac{1}{\abs{\mathbf{k}' - \mathbf{k}}} \sum_{j} C_{j}^{\lambda_{1}*}(\mathbf{k}') C_{j}^{\lambda_{4}}(\mathbf{k}) \sum_{j'} C_{j'}^{\lambda_{2}*}(\mathbf{k}) C_{j'}^{\lambda_{3}}(\mathbf{k}')
+	\end{aligned}
+\end{equation}
+
 Trong gauge vận tốc ta có
 \begin{equation}
 	\begin{aligned}
@@ -524,12 +551,28 @@ Trong gauge vận tốc ta có
 \subsection{Tương tác Coulomb}
 \begin{equation}
 	\begin{aligned}
+		H_{F} =- \frac{i}{\hbar} \sum_{c,v,\mathbf{k}'} V_{\lambda_{1} \lambda_{2} \lambda_{3} \lambda_{4}} (\mathbf{k}, \mathbf{k}', \mathbf{k}' - \mathbf{k}) \rho_{\lambda_{1} \lambda_{3}} (\mathbf{k}') 
+	\end{aligned}
+\end{equation}
+trong đó
+\begin{equation}
+	\begin{aligned}
 		V_{\lambda_{1} \lambda_{2} \lambda_{3} \lambda_{4}} (\mathbf{k}, \mathbf{k}', \mathbf{k}' - \mathbf{k})
-		& = \frac{e^{2}}{2 \varepsilon \varepsilon_{0} L^{2}} \frac{1}{\abs{\mathbf{k}' - \mathbf{k}}} \sum_{j} C_{j}^{\lambda_{1}*}(\mathbf{k}') C_{j}^{\lambda_{4}}(\mathbf{k}) \sum_{j'} C_{j'}^{\lambda_{2}*}(\mathbf{k}) C_{j'}^{\lambda_{3}}(\mathbf{k}') \\
-		& = 
+		& = \frac{e^{2}}{2 \varepsilon \varepsilon_{0} L^{2}} \frac{1}{\abs{\mathbf{k}' - \mathbf{k}}} \sum_{j} C_{j}^{\lambda_{1}*}(\mathbf{k}') C_{j}^{\lambda_{4}}(\mathbf{k}) \sum_{j'} C_{j'}^{\lambda_{2}*}(\mathbf{k}) C_{j'}^{\lambda_{3}}(\mathbf{k}')
 	\end{aligned}
 \end{equation}
 
+
+
+Optical polarization
+\begin{gather}
+	\mathbf{P}(t) = \frac{e}{L^{2}} \sum_{c,v,\mathbf{k}} \boldsymbol{\xi}_{cv}(\mathbf{k}) \rho_{vc}(\mathbf{k}),
+\end{gather}
+
+
+\begin{equation}
+	\frac{d}{dt} \rho_{vc}(\mathbf{k}) = \frac{i}{\hbar} ( \mathcal{E}_{c}(\mathbf{k}) - \mathcal{E}_{v}(\mathbf{k}) +\frac{i\hbar}{T_{2}} ) \rho_{vc}(\mathbf{k}) + \frac{i}{\hbar} e\mathbf{E}(t) \cdot \boldsymbol{\xi}_{vc}(\mathbf{k})
+\end{equation}
 
 
 \end{document}
