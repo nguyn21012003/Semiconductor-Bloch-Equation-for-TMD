@@ -13,7 +13,9 @@ base_dir = cfg.base_dir
 
 
 class Material:
-    def __init__(self, name: str, modelNeighbor: str, modelApprox: str, isMatrixTransform: bool) -> None:
+    def __init__(
+        self, name: str, modelNeighbor: str, modelApprox: str, isMatrixTransform: bool
+    ) -> None:
         self.name = name
         self.modelNeighbor = modelNeighbor  ## TNN or NN
         self.modelApprox = modelApprox  ## GGA or LDA
