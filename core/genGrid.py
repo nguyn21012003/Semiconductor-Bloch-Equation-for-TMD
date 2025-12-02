@@ -29,34 +29,29 @@ def Rhombus(alattice: float, N: int):
 
 def Monkhorst(alattice: float, N: int):
     G = 4 * pi / (sqrt(3) * alattice)
-
-    # Hexagonal reciprocal vectors in Cartesian
     b1 = np.array([sqrt(3) / 2 * G, -1 / 2 * G])
     b2 = np.array([sqrt(3) / 2 * G, 1 / 2 * G])
+    akx = np.zeros((N, N))
+    aky = np.zeros((N, N))
 
-    # Arrays
-    k_frac = np.zeros((N, N, 2))  # fractional (kx,ky)
-    k_cart = np.zeros((N, N, 2))  # cartesian (kx,ky)
-
-    k1 = k2 = 0  # no shift
-
-    for i in range(1, N + 1):
+    kArr = np.zeros([N, N, 2])
+    for i in tqdm(range(1, N + 1), desc="Monkhorst-Pack k grid", colour="red"):
         for j in range(1, N + 1):
 
-            # --- fractional MP coordinates (QE formula) ---
-            kx = (i - 1) / N + k1 / (2 * N)
-            ky = (j - 1) / N + k2 / (2 * N)
+            kvec = (2 * i - N - 1) / (2 * N) * b1 + (2 * j - N - 1) / (2 * N) * b2
+            akx[i - 1, j - 1] = kvec[0]
+            aky[i - 1, j - 1] = kvec[1]
 
-            k_frac[i - 1, j - 1] = [kx, ky]
+    # dkx = sqrt(3) / 2 * abs(akx[0, 0] - akx[1, 0])
+    # dky = 1 / 2 * abs(akx[0, 1] - akx[0, 0])
 
-            # --- convert to Cartesian ---
-            k_cart[i - 1, j - 1] = kx * b1 + ky * b2
+    kArr[:, :, 0] = akx
+    kArr[:, :, 1] = aky
 
-    # Real spacing in k-space
-    dkx = np.linalg.norm(k_cart[1, 0] - k_cart[0, 0])
-    dky = np.linalg.norm(k_cart[0, 1] - k_cart[0, 0])
+    dkx = np.linalg.norm(b1) / N
+    dky = np.linalg.norm(b2) / N
 
-    return k_cart, dkx, dky
+    return kArr, dkx, dky
 
 
 def Cartesian(alattice: float, N: int):
