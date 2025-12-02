@@ -1,6 +1,8 @@
 from numpy import sqrt, pi
 import numpy as np
 
+from numpy.linalg import norm
+
 from tqdm import tqdm
 
 
@@ -12,8 +14,8 @@ def Rhombus(alattice: float, N: int):
     akx = np.zeros([len(ak1), len(ak2)])
     aky = np.zeros([len(ak1), len(ak2)])
     kArr = np.zeros([len(ak1), len(ak2), 2])
-    dkx = G / (N - 1)
-    dky = G / (N - 1)
+    dkx = G / (N)
+    dky = G / (N)
     for i in tqdm(range(N), desc="Create k grid", colour="red"):
         for j in range(N):
             akx[i][j] = sqrt(3) / 2 * (ak1[i] + ak2[j])
@@ -27,52 +29,71 @@ def Rhombus(alattice: float, N: int):
 
 def Monkhorst(alattice: float, N: int):
     G = 4 * pi / (sqrt(3) * alattice)
+
+    # Hexagonal reciprocal vectors in Cartesian
     b1 = np.array([sqrt(3) / 2 * G, -1 / 2 * G])
     b2 = np.array([sqrt(3) / 2 * G, 1 / 2 * G])
-    akx = np.zeros((N, N))
-    aky = np.zeros((N, N))
 
-    kArr = np.zeros([N, N, 2])
-    for i in tqdm(range(1, N + 1), desc="Monkhorst-Pack k grid", colour="red"):
+    # Arrays
+    k_frac = np.zeros((N, N, 2))  # fractional (kx,ky)
+    k_cart = np.zeros((N, N, 2))  # cartesian (kx,ky)
+
+    k1 = k2 = 0  # no shift
+
+    for i in range(1, N + 1):
         for j in range(1, N + 1):
 
-            kvec = (2 * i - N - 1) / (2 * N) * b1 + (2 * j - N - 1) / (2 * N) * b2
-            akx[i - 1, j - 1] = kvec[0]
-            aky[i - 1, j - 1] = kvec[1]
+            # --- fractional MP coordinates (QE formula) ---
+            kx = (i - 1) / N + k1 / (2 * N)
+            ky = (j - 1) / N + k2 / (2 * N)
 
-    dkx = sqrt(3) / 2 * abs(akx[0, 0] - akx[1, 0])
-    dky = 1 / 2 * abs(akx[0, 1] - akx[0, 0])
+            k_frac[i - 1, j - 1] = [kx, ky]
 
-    kArr[:, :, 0] = akx
-    kArr[:, :, 1] = aky
-    return kArr, dkx, dky
+            # --- convert to Cartesian ---
+            k_cart[i - 1, j - 1] = kx * b1 + ky * b2
+
+    # Real spacing in k-space
+    dkx = np.linalg.norm(k_cart[1, 0] - k_cart[0, 0])
+    dky = np.linalg.norm(k_cart[0, 1] - k_cart[0, 0])
+
+    return k_cart, dkx, dky
 
 
 def Cartesian(alattice: float, N: int):
+    SR3 = sqrt(3)
     B = np.array(
         [
             [2.0 * pi / alattice, 2.0 * pi / alattice],
-            [2.0 * pi / (sqrt(3) * alattice), -2.0 * pi / (sqrt(3) * alattice)],
+            [2.0 * pi / (SR3 * alattice), -2.0 * pi / (SR3 * alattice)],
         ]
     )
-    c_coord = np.linspace(0.0, 1.0, N)
-    c1, c2 = np.meshgrid(c_coord, c_coord, indexing="ij")
-    kx_unscaled = B[0, 0] * c1 + B[0, 1] * c2
-    ky_unscaled = B[1, 0] * c1 + B[1, 1] * c2
 
-    kx = kx_unscaled - 2.0 * pi / alattice
-    ky = ky_unscaled - 0.0
-    kArr = np.stack([kx, ky], axis=-1)
+    ratio = np.linspace(0, 1, N)
 
-    k1max = (2.0 * pi) / (sqrt(3) * alattice)
-    k2max = (2.0 * pi) / (sqrt(3) * alattice)  # Fortran dùng K2max, giả sử là k2max
+    nk1_ratio = ratio.reshape(-1, 1)
+    nk2_ratio = ratio.reshape(1, -1)
+
+    grid_x = (B[0, 0] * nk1_ratio + B[0, 1] * nk2_ratio) - 2.0 * pi / alattice
+
+    grid_y = (B[1, 0] * nk1_ratio + B[1, 1] * nk2_ratio) - 0.0
+
+    kArr = np.stack((grid_x, grid_y), axis=-1)
+
+    k1max = (2.0 * pi) / (SR3 * alattice)
+    k2max = (2.0 * pi) / (SR3 * alattice)
 
     dk1 = 2.0 * k1max / (N - 1)
     dk2 = 2.0 * k2max / (N - 1)
 
-    k1_arr = -k1max + np.arange(N) * dk1
-    k2_arr = -k2max + np.arange(N) * dk2
+    k1 = -k1max + np.arange(N) * dk1
+    k2 = -k2max + np.arange(N) * dk2
 
-    dkx = abs(sqrt(3) * (k1_arr[0] + k2_arr[0]) / 2.0 - sqrt(3) * (k1_arr[1] + k2_arr[0]) / 2.0)
-    dky = abs((k2_arr[0] - k1_arr[0]) / 2.0 - (k2_arr[0] - k1_arr[1]) / 2.0)
+    term1_x = SR3 * (k1[0] + k2[0]) / 2.0
+    term2_x = SR3 * (k1[1] + k2[0]) / 2.0
+    dkx = abs(term1_x - term2_x)
+
+    term1_y = (k2[0] - k1[0]) / 2.0
+    term2_y = (k2[0] - k1[1]) / 2.0
+    dky = abs(term1_y - term2_y)
+
     return kArr, dkx, dky
