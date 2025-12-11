@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 from numba import jit
 from numpy import pi, sqrt
-from numpy.linalg import norm
 from numpy.typing import NDArray
 from tqdm import tqdm
 
@@ -15,14 +14,14 @@ from core.genHam import tbm_Hamiltonian
 from settings.configs import Config
 
 
-def Hartree_Fock_func(data, modelNeighbor):
+def linearSBE(data, modelNeighbor):
     alattice = data["alattice"]
     N = Config.N
     detuning = Config.detuning
 
     # grid, dkx, dky = genGrid.Rhombus(alattice, N)
     grid, dk2 = genGrid.Monkhorst(alattice, N)
-    # grid, dkx, dky = genGrid.Cartesian(alattice, N)
+    # grid, dk2 = genGrid.Cartesian(alattice, N)
     print(dk2)
     print(f"Grid dim:{grid.shape}")
 
@@ -127,9 +126,6 @@ def absorptionSpectra(P_t_array, egap, evoltime):
     chi_y_array = s2_array / (s3_array + 1e-16)
     energy_col = omega_array * hbar - egap
     alpha_array = np.imag(chi_x_array + chi_y_array)
-    # pmax_index = np.argmax(chi_x_array)
-    # eBind = energy_col[pmax_index]
-    # print("Exiton binding energy: ", eBind)
 
     data = {
         "Energy_minus_Egap(eV)": energy_col,
@@ -154,8 +150,8 @@ def totalPolarizationFunction(rho, xi, dk2):
     sum2 = 0j
 
     ratio = dk2 / (4 * pi**2)
-    for jb in [0, 1]:
-        for ib in [2, 3, 4, 5]:
+    for jb in range(2):
+        for ib in range(2, 6):
             sum1 += np.sum(xi[:, :, jb, ib, 0] * rho[:, :, ib, jb])
             sum2 += np.sum(xi[:, :, jb, ib, 1] * rho[:, :, ib, jb])
 
@@ -180,9 +176,10 @@ def rhsSBE(rho, t, Et, At, xiov, p, dk2, E, omega_L, exchange_term):
     T2 = Config.T_cohenrent
     # hfse = hamiltonian_coulomb(exchange_term, rho, N)
     cm1, cm2, nkc = exchange_term
-    hfse = HartreeFockSelfEnergy(rho, dk2, N, nkc, cm1, cm2)
-    for v in [0, 1]:
-        for c in [2, 3, 4, 5]:
+
+    # hfse = HartreeFockSelfEnergy(rho, dk2, N, nkc, cm1, cm2)
+    for v in range(2):
+        for c in range(2, 6):
             # ω_cv = (E_c − E_v)/ħ
             omegaCV = (E[:, :, c] - E[:, :, v]) / Config.hbar
 
@@ -192,7 +189,7 @@ def rhsSBE(rho, t, Et, At, xiov, p, dk2, E, omega_L, exchange_term):
             omegaRabi = (Etx * xix + Ety * xiy) / Config.hbar
 
             # HF term for (c,v)
-            omegaHF = hfse[:, :, c, v] / Config.hbar
+            # omegaHF = hfse[:, :, c, v] / Config.hbar
 
             # density matrix element ρ_cv
             rho_cv = rho[:, :, c, v]
@@ -200,7 +197,7 @@ def rhsSBE(rho, t, Et, At, xiov, p, dk2, E, omega_L, exchange_term):
             # equation of motion for ρ_cv
             rhodot = (
                 -1j * (omegaCV - omega_L) * rho_cv
-                + 1j * omegaHF
+                # + 1j * omegaHF
                 - 1j * omegaRabi
                 - rho_cv / T2
             )
@@ -222,16 +219,14 @@ def plot_grid(kArr, file):
 
 @jit(nopython=True, parallel=True)
 def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
-
     hfse = np.zeros((n, n, 6, 6), dtype=np.complex128)
-
     for j in nb.prange(nc + 1, 2 * nc + 1):
         for i in range(nc + 1, 2 * nc + 1):
-            for l4 in [0, 1, 2, 3]:
-                for l2 in [0, 1, 2, 3]:
+            for l4 in range(4):
+                for l2 in range(4):
                     for jj in range(nc + 1, 2 * nc + 1):
                         for ii in range(nc + 1, 2 * nc + 1):
-                            for l1 in [0, 1]:
+                            for l1 in range(2):
                                 hfse[i - 1, j - 1, l2, l4] += -(
                                     cm1[
                                         (i - nc) + (j - nc - 1) * nc - 1,
@@ -245,13 +240,8 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                     * dk2
                                     / (4 * pi**2)
                                 )
-                            for l3 in [2, 3]:
-                                hfse[
-                                    i - 1,
-                                    j - 1,
-                                    l2,
-                                    l4,
-                                ] += (
+                            for l3 in range(2, 4):
+                                hfse[i - 1, j - 1, l2, l4] += (
                                     cm1[
                                         (i - nc) + (j - nc - 1) * nc - 1,
                                         (ii - nc) + (jj - nc - 1) * nc - 1,
@@ -264,8 +254,8 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                     * dk2
                                     / (4 * pi**2)
                                 )
-                            for l1 in [0, 1, 2]:
-                                for l3 in range(l1 + 1, 5):
+                            for l1 in range(3):
+                                for l3 in range(l1 + 1, 4):
                                     hfse[i - 1, j - 1, l2, l4] += cm1[
                                         (i - nc) + (j - nc - 1) * nc - 1,
                                         (ii - nc) + (jj - nc - 1) * nc - 1,
@@ -283,21 +273,18 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                         l1,
                                         l4,
                                     ] * rho[
-                                        ii - 1,
-                                        jj - 1,
-                                        l1,
-                                        l3,
+                                        ii - 1, jj - 1, l1, l3
                                     ] * dk2 / (
                                         4 * pi**2
                                     )
 
-    for j in range(n - 2 * nc + 1, n - nc + 1):
+    for j in nb.prange(n - 2 * nc + 1, n - nc + 1):
         for i in range(n - 2 * nc + 1, n - nc + 1):
-            for l4 in [0, 1, 2, 3]:
-                for l2 in [0, 1, 2, 3]:
+            for l4 in range(4):
+                for l2 in range(4):
                     for jj in range(n - 2 * nc + 1, n - nc + 1):
                         for ii in range(n - 2 * nc + 1, n - nc + 1):
-                            for l1 in [0, 1]:
+                            for l1 in range(2):
                                 hfse[i - 1, j - 1, l2, l4] += -(
                                     cm2[
                                         (i - n + 2 * nc)
@@ -315,13 +302,8 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                     * dk2
                                     / (4 * pi**2)
                                 )
-                            for l3 in [2, 3]:
-                                hfse[
-                                    i - 1,
-                                    j - 1,
-                                    l2,
-                                    l4,
-                                ] += (
+                            for l3 in range(2, 4):
+                                hfse[i - 1, j - 1, l2, l4] += (
                                     cm2[
                                         (i - n + 2 * nc)
                                         + (j - n + 2 * nc - 1) * nc
@@ -338,8 +320,8 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                     * dk2
                                     / (4 * pi**2)
                                 )
-                            for l1 in [0, 1, 2]:
-                                for l3 in range(l1 + 1, 5):
+                            for l1 in range(3):
+                                for l3 in range(l1 + 1, 4):
                                     hfse[i - 1, j - 1, l2, l4] += cm2[
                                         (i - n + 2 * nc)
                                         + (j - n + 2 * nc - 1) * nc
@@ -365,10 +347,7 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
                                         l1,
                                         l4,
                                     ] * rho[
-                                        ii - 1,
-                                        jj - 1,
-                                        l1,
-                                        l3,
+                                        ii - 1, jj - 1, l1, l3
                                     ] * dk2 / (
                                         4 * pi**2
                                     )
@@ -376,244 +355,120 @@ def HartreeFockSelfEnergy(rho, dk2, n, nc, cm1, cm2):
     return hfse
 
 
-# @jit(nopython=True, parallel=True)
-# def hamiltonian_coulomb(data, rho, N):
-#     (
-#         coulomb_const,
-#         num_kcutoff,
-#         mapp,
-#         grid,
-#         C,
-#         check_valid_cutoff_ar,
-#     ) = data
-#     ########## Note:
-#     hsfe = np.zeros((N, N, 6, 6), dtype=np.complex128)
-#     for k_i in nb.prange(num_kcutoff):
-#         for nu in [0, 1]:
-#             for alpha in [2, 3, 4, 5]:
-#                 sum1 = 0.0j
-#                 for k_j in range(num_kcutoff):
-#                     # state1 = check_valid_cutoff_ar[mapp[k_i, 0], mapp[k_i, 1], 0]
-#                     # state2 = check_valid_cutoff_ar[mapp[k_j, 0], mapp[k_j, 1], 0]
-#                     #
-#                     # state3 = check_valid_cutoff_ar[mapp[k_i, 0], mapp[k_i, 1], 1]
-#                     # state4 = check_valid_cutoff_ar[mapp[k_j, 0], mapp[k_j, 1], 1]
-#
-#                     # if not (state1 and state2 or state3 and state4):
-#                     # continue
-#                     if k_i == k_j:
-#                         continue
-#                     kxi = grid[mapp[k_i, 0], mapp[k_i, 1], 0]
-#                     kxj = grid[mapp[k_j, 0], mapp[k_j, 1], 0]
-#                     kyi = grid[mapp[k_i, 0], mapp[k_i, 1], 1]
-#                     kyj = grid[mapp[k_j, 0], mapp[k_j, 1], 1]
-#                     q = 1.0 / (np.sqrt((kxj - kxi) ** 2 + (kyj - kyi) ** 2))
-#
-#                     for beta in [0, 1]:
-#                         for mu in [2, 3, 4, 5]:
-#                             C23 = C[k_i, k_j, nu, beta]
-#                             C14 = C[k_j, k_i, mu, alpha]
-#                             rho13 = rho[mapp[k_j, 0], mapp[k_j, 1], beta, mu]
-#                             sum1 += (C14 * rho13 * C23) * q
-#                 hsfe[mapp[k_i, 0], mapp[k_i, 1], nu, alpha] = sum1 * coulomb_const
-#                 hsfe[mapp[k_i, 0], mapp[k_i, 1], alpha, nu] = np.conjugate(
-#                     hsfe[mapp[k_i, 0], mapp[k_i, 1], nu, alpha]
-#                 )
-#
-#     return hsfe
+@jit(nopython=True, parallel=True)
+def calcCMp(n, nc, cc, wfc, grid):
+    cm1 = np.zeros((nc**2, nc**2, 4, 4, 4, 4), dtype=np.complex128)
+    cm2 = np.zeros((nc**2, nc**2, 4, 4, 4, 4), dtype=np.complex128)
+    for j in nb.prange(nc + 1, 2 * nc + 1):
+        for i in range(nc + 1, 2 * nc + 1):
+            k1 = (i - nc) + (j - nc - 1) * nc
+            for jj in range(nc + 1, 2 * nc + 1):
+                for ii in range(nc + 1, 2 * nc + 1):
+                    kk = (ii - nc) + (jj - nc - 1) * nc
+                    # q1 = sqrt(
+                    #     (grid[i, j, 0] - grid[ii, jj, 0]) ** 2
+                    #     + (grid[i, j, 1] - grid[ii, jj, 1]) ** 2
+                    # )
+                    q1 = np.linalg.norm(grid[i, j] - grid[ii, jj])
+                    if q1 > 0:
+                        for l1 in range(4):
+                            for l2 in range(4):
+                                for l3 in range(4):
+                                    for l4 in range(4):
+                                        s11 = 0j
+                                        s21 = 0j
+                                        for lb in range(6):
+                                            s11 += (
+                                                np.conjugate(wfc[ii, jj, lb, l1])
+                                                * wfc[i, j, lb, l4]
+                                            )
+                                            s21 += (
+                                                np.conjugate(wfc[i, j, lb, l2])
+                                                * wfc[ii, jj, lb, l3]
+                                            )
+                                        cm1[k1 - 1, kk - 1, l1, l2, l3, l4] = (
+                                            cc / q1 * s11 * s21
+                                        )
+
+    for j in nb.prange(n - 2 * nc + 1, n - nc + 1):
+        for i in range(n - 2 * nc + 1, n - nc + 1):
+            k = (i - n + 2 * nc) + (j - n + 2 * nc - 1) * nc
+            for jj in range(n - 2 * nc + 1, n - nc + 1):
+                for ii in range(n - 2 * nc + 1, n - nc + 1):
+                    kk = (ii - n + 2 * nc) + (jj - n + 2 * nc - 1) * nc
+                    # q2 = sqrt(
+                    #     (grid[i, j, 0] - grid[ii, jj, 0]) ** 2
+                    #     + (grid[i, j, 1] - grid[ii, jj, 1]) ** 2
+                    # )
+                    q2 = np.linalg.norm(grid[i, j] - grid[ii, jj])
+                    if q2 > 0:
+                        for l1 in range(4):
+                            for l2 in range(4):
+                                for l3 in range(4):
+                                    for l4 in range(4):
+                                        s12 = 0j
+                                        s22 = 0j
+                                        for lb in range(6):
+                                            s12 += (
+                                                np.conjugate(wfc[ii, jj, lb, l1])
+                                                * wfc[i, j, lb, l4]
+                                            )
+                                            s22 += (
+                                                np.conjugate(wfc[i, j, lb, l2])
+                                                * wfc[ii, jj, lb, l3]
+                                            )
+                                        cm2[k - 1, kk - 1, l1, l2, l3, l4] = (
+                                            cc / q2 * s12 * s22
+                                        )
+
+    return cm1, cm2
 
 
 def CoulMat(alattice: str, wfc, grid, dk2):
-    N = Config.N
+    n = Config.N
     epsilon = Config.varepsilon
+    print("epsilon: ", epsilon)
     epsilon0 = Config.varepsilon0
+    print("epsilon0: ", epsilon0)
     e_charge = Config.e_charge
 
     # grid is an array contain kx and ky with N,N,2 dimensions
-    # dk (1/nm)
 
-    ratio = dk2 / (4 * pi**2)
-    cc = e_charge**2 / (2 * epsilon * epsilon0) * ratio  # ev/nm
+    cc = 2 * pi * e_charge**2 / (4 * pi * epsilon * epsilon0)  # ev/nm
     print("Coulomb constant: ", cc, "ev*nm")
     # print("Ratio:", ratio)
 
-    nkc = int(2 * N / 18)
-    print("Number k cutoff:", nkc)
-    cm1 = np.zeros([nkc**2, nkc**2, 6, 6, 6, 6], dtype="complex")
-    cm2 = np.zeros([nkc**2, nkc**2, 6, 6, 6, 6], dtype="complex")
+    nc = int(2 * n / 18)
+    print("Number k cutoff:", nc)
 
+    cm1, cm2 = calcCMp(n, nc, cc, wfc, grid)
     with open("./results/kgridcutoff1.dat", "w", newline="") as f1:
         header = ["kx", "ky"]
         w1 = csv.DictWriter(f1, fieldnames=header, delimiter=",")
         w1.writeheader()
-        for j in tqdm(range(nkc + 1, 2 * nkc + 1), desc="CM1"):
-            for i in range(nkc + 1, 2 * nkc + 1):
-                k = (i - nkc) + (j - nkc - 1) * nkc
+        for j in tqdm(range(nc + 1, 2 * nc + 1), desc="CM1"):
+            for i in range(nc + 1, 2 * nc + 1):
 
                 ##### Write file for the K points cutoffed zone
                 rows1 = {}
-                rows1["kx"] = grid[i, j, 0]
-                rows1["ky"] = grid[i, j, 1]
+                rows1["kx"] = grid[i - 1, j - 1, 0]
+                rows1["ky"] = grid[i - 1, j - 1, 1]
                 w1.writerow(rows1)
-                for jj in range(nkc + 1, 2 * nkc + 1):
-                    for ii in range(nkc + 1, 2 * nkc + 1):
-                        kk = (ii - nkc) + (jj - nkc - 1) * nkc
-                        q1 = sqrt(
-                            (grid[i, j, 0] - grid[ii, jj, 0]) ** 2
-                            + (grid[i, j, 1] - grid[ii, jj, 1]) ** 2
-                        )
-                        # q1 = norm(grid[i, j] - grid[ii, jj])
-                        if q1 > 0:
-                            for l1 in [0, 1, 2, 3]:
-                                for l2 in [0, 1, 2, 3]:
-                                    for l3 in [0, 1, 2, 3]:
-                                        for l4 in [0, 1, 2, 3]:
-                                            s11 = 0j
-                                            s21 = 0j
-                                            for lb in range(0, 6):
-                                                s11 += (
-                                                    np.conjugate(wfc[ii, jj, lb, l1])
-                                                    * wfc[i, j, lb, l4]
-                                                )
-                                                s21 += (
-                                                    np.conjugate(wfc[i, j, lb, l2])
-                                                    * wfc[ii, jj, lb, l3]
-                                                )
-                                            cm1[k - 1, kk - 1, l1, l2, l3, l4] = (
-                                                cc / q1 * s11 * s21
-                                            )
-
-    print(cm1)
 
     with open("./results/kgridcutoff2.dat", "w", newline="") as f2:
         header = ["kx", "ky"]
         w2 = csv.DictWriter(f2, fieldnames=header, delimiter=",")
         w2.writeheader()
-        for j in tqdm(range(N - 2 * nkc + 1, N - nkc + 1), desc="CM2"):
-            for i in range(N - 2 * nkc + 1, N - nkc + 1):
-                k = (i - N + 2 * nkc) + (j - N + 2 * nkc - 1) * nkc
+        for j in tqdm(range(n - 2 * nc + 1, n - nc + 1), desc="CM2"):
+            for i in range(n - 2 * nc + 1, n - nc + 1):
 
                 ##### Write file for the K points cutoffed zone
                 rows2 = {}
-                rows2["kx"] = grid[i, j, 0]
-                rows2["ky"] = grid[i, j, 1]
+                rows2["kx"] = grid[i - 1, j - 1, 0]
+                rows2["ky"] = grid[i - 1, j - 1, 1]
                 w2.writerow(rows2)
-                for jj in range(N - 2 * nkc + 1, N - nkc + 1):
-                    for ii in range(N - 2 * nkc + 1, N - nkc + 1):
-                        kk = (ii - N + 2 * nkc) + (jj - N + 2 * nkc - 1) * nkc
-                        q2 = sqrt(
-                            (grid[i, j, 0] - grid[ii, jj, 0]) ** 2
-                            + (grid[i, j, 1] - grid[ii, jj, 1]) ** 2
-                        )
-                        # q2 = norm(grid[i, j] - grid[ii, jj])
-                        if q2 > 0:
-                            for l1 in [0, 1, 2, 3]:
-                                for l2 in [0, 1, 2, 3]:
-                                    for l3 in [0, 1, 2, 3]:
-                                        for l4 in [0, 1, 2, 3]:
-                                            s12 = 0j
-                                            s22 = 0j
-                                            for lb in range(0, 6):
-                                                s12 += (
-                                                    np.conjugate(wfc[ii, jj, lb, l1])
-                                                    * wfc[i, j, lb, l4]
-                                                )
-                                                s22 += (
-                                                    np.conjugate(wfc[i, j, lb, l2])
-                                                    * wfc[ii, jj, lb, l3]
-                                                )
-                                            cm2[k - 1, kk - 1, l1, l2, l3, l4] = (
-                                                cc / q2 * s12 * s22
-                                            )
 
-    return cm1, cm2, nkc
-
-
-# def Coulomb(alattice: str, eigenVectors, grid, dk2):
-#     N = Config.N
-#     epsilon = Config.varepsilon
-#     epsilon0 = Config.varepsilon0
-#     e_charge = Config.e_charge
-#
-#     # grid is an array contain kx and ky with N,N,2 dimensions
-#     # dk (1/nm)
-#
-#     ratio = dk2 / (4 * pi**2)
-#     coulomb_const = e_charge**2 / (2 * epsilon * epsilon0) * ratio  # ev/nm
-#     print("Coulomb constant: ", coulomb_const, "ev*nm")
-#     print("Ratio:", ratio)
-#
-#     print("Grid before cutting off:", grid.shape)
-#     num_kcutoff, check_valid_cutoff_array = cutoff_Grid_function(N, grid, alattice)
-#
-#     mappingArray = []
-#     for i in range(N):
-#         for j in range(N):
-#             if check_valid_cutoff_array[i, j, 0]:
-#                 mappingArray.append((i, j))
-#
-#     for i in range(N):
-#         for j in range(N):
-#             if check_valid_cutoff_array[i, j, 1]:
-#                 mappingArray.append((i, j))
-#
-#     mappingArray = np.array(mappingArray)
-#
-#     if len(mappingArray) != num_kcutoff:
-#         raise ValueError("Error: mapping k to map array mismatch")
-#
-#     # try:
-#     #     indices_k1_tuple = np.where(check_valid_cutoff_array[:, :, 0])
-#     #     # check True elements and return index
-#     #
-#     #     map_k1 = np.column_stack(indices_k1_tuple)
-#     #     num_k1_points = len(map_k1)
-#     #     map_k1 = np.column_stack(indices_k1_tuple)
-#     #     indices_k2_tuple = np.where(check_valid_cutoff_array[:, :, 1])
-#     #     map_k2 = np.column_stack(indices_k2_tuple)
-#     #     mappingArray = np.vstack((map_k1, map_k2))
-#     #     if len(mappingArray) != num_kcutoff:
-#     #         raise ValueError(f"Error Map: ({len(mappingArray)}) and ({num_kcutoff})")
-#     #
-#     #     print(f"Mapping done: {mappingArray.shape}")
-#     # except ValueError as e:
-#     #     print(e)
-#     #     import sys
-#     #
-#     #     sys.exit(1)
-#
-#     kArray = grid[mappingArray[:, 0], mappingArray[:, 1], :]
-#     np.savetxt("./results/kgridcutoff.dat", kArray, delimiter=",", header="kx,ky")
-#     coulombInteractionArray = np.zeros([num_kcutoff, num_kcutoff, 6, 6], dtype=complex)
-#
-#     for i in tqdm(range(num_kcutoff), desc="Calculating overlaps"):
-#         for j in range(num_kcutoff):
-#             # state1 = check_valid_cutoff_array[mappingArray[i, 0], mappingArray[i, 1], 0]
-#             # state2 = check_valid_cutoff_array[mappingArray[j, 0], mappingArray[j, 1], 0]
-#             #
-#             # state3 = check_valid_cutoff_array[mappingArray[i, 0], mappingArray[i, 1], 1]
-#             # state4 = check_valid_cutoff_array[mappingArray[j, 0], mappingArray[j, 1], 1]
-#             # if state1 and state2 or state3 and state4:
-#             cj = eigenVectors[mappingArray[j, 0], mappingArray[j, 1], :, :]
-#             ci = eigenVectors[mappingArray[i, 0], mappingArray[i, 1], :, :]
-#             S = np.conjugate(cj).T @ ci
-#             # for m in range(6):
-#             #     for n in range(6):
-#             #         coulombInteractionArray[i, j, m, n] = S[m, n]
-#             coulombInteractionArray[i, j, :, :] = S[:, :]
-#
-#     # print(coulombInteractionArray)
-#
-#     exch = (
-#         coulomb_const,
-#         num_kcutoff,
-#         mappingArray,
-#         # kArray,
-#         grid,
-#         coulombInteractionArray,
-#         check_valid_cutoff_array,
-#     )
-#     return exch
+    return cm1, cm2, nc
 
 
 def dipole(E, p, check_degenaracy):
@@ -625,94 +480,20 @@ def dipole(E, p, check_degenaracy):
 
     const = -1j * hbar / me
     for m in tqdm(range(6), desc="Dipole"):
-        for n in range(6):
+        for n in range(m + 1, 6):
             if check_degenaracy[m, n] == 0:
-                xi[:, :, m, n, 0] = const * (px[:, :, m, n] / (E[:, :, m] - E[:, :, n]))
-                xi[:, :, m, n, 1] = const * (py[:, :, m, n] / (E[:, :, m] - E[:, :, n]))
+                if m != n:
+                    xi[:, :, m, n, 0] = const * (
+                        px[:, :, m, n] / (E[:, :, m] - E[:, :, n])
+                    )
+                    xi[:, :, m, n, 1] = const * (
+                        py[:, :, m, n] / (E[:, :, m] - E[:, :, n])
+                    )
 
-                xi[:, :, n, m, 0] = np.conjugate(xi[:, :, m, n, 0])
-                xi[:, :, n, m, 1] = np.conjugate(xi[:, :, m, n, 1])
+                    xi[:, :, n, m, 0] = np.conjugate(xi[:, :, m, n, 0])
+                    xi[:, :, n, m, 1] = np.conjugate(xi[:, :, m, n, 1])
 
-    # return xi_x, xi_y
     return xi
-
-
-def cutoff_Grid_function(N, grid, alattice) -> Tuple[int, NDArray[np.bool_]]:
-    """
-    Apply a momentum-space cutoff around the K and K' points in the Brillouin zone.
-
-    This function scans through all k-points in a 2D reciprocal-space grid and determines
-    whether each point lies within a cutoff radius `rkcutoff` around either of the two
-    Dirac points K and K'. It returns both the total count of valid points and a boolean
-    mask identifying which grid points belong to which valley.
-
-    Parameters
-    ----------
-    N : int
-        The number of k-points along each dimension of the Monkhorst–Pack grid.
-
-    grid : ndarray of shape (N, N, 2)
-        The array of k-points in reciprocal space.
-        Each element `grid[i, j] = [kx, ky]` gives the Cartesian components
-        of the k-point in units of 1/length.
-
-    alattice : float
-        The lattice constant of the real-space unit cell.
-        Used to locate the K and K' points at ±4π/(3a) along the kx-axis.
-
-    Returns
-    -------
-    count : int
-        The total number of k-points lying within the cutoff radius of either
-        K or K'.
-
-    check_valid_cutoff_grid : ndarray of shape (N, N, 2), bool
-        A boolean mask indicating whether each k-point belongs to:
-        - `[..., 0]`: inside the cutoff around the K valley (+4π/3a)
-        - `[..., 1]`: inside the cutoff around the K' valley (−4π/3a)
-        Points outside both regions are False.
-
-    Notes
-    -----
-    - The cutoff radius `rkcutoff` is taken from `Config.rkcutoff`.
-    - The K and K' points are defined as:
-        K  = ( +4π / (3a), 0 )
-        K' = ( −4π / (3a), 0 )
-    - This function is typically used to limit calculations (e.g., Coulomb integrals)
-      to regions around the Dirac points, reducing computational cost.
-
-    Example
-    -------
-    >>> count, mask = cutoff_Grid_function(N=301, grid=kArray, alattice=2.46)
-    >>> print(count)
-    520
-    >>> mask.shape
-    (301, 301, 2)
-    >>> mask[150, 150, 0]
-    False
-    >>> mask[120, 180, 1]
-    True
-    """
-    rkcutoff = Config.rkcutoff
-    print("radius cutoff k:", rkcutoff)
-    check_valid_cutoff_grid = np.zeros([N, N, 2], dtype=bool)
-    count = 0
-    for i in tqdm(range(N), desc="Cutting off K-points"):
-        for j in range(N):
-            rk1 = sqrt(
-                (grid[i, j, 0] - 4 * pi / (3 * alattice)) ** 2 + grid[i, j, 1] ** 2
-            )
-            rk2 = sqrt(
-                (grid[i, j, 0] + 4 * pi / (3 * alattice)) ** 2 + grid[i, j, 1] ** 2
-            )
-            if rk1 <= rkcutoff:
-                check_valid_cutoff_grid[i, j, 0] = True
-                count += 1
-            elif rk2 <= rkcutoff:
-                check_valid_cutoff_grid[i, j, 1] = True
-                count += 1
-    print("Number of k points after cutting off:", count)
-    return count, check_valid_cutoff_grid
 
 
 def solveHamiltonian(data, kArray, modelNeighbor) -> Tuple[
