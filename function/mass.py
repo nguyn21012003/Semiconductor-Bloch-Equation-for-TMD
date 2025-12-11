@@ -25,7 +25,7 @@ def calcMass(data: dict, modelNeighbor: str):
             alpha = kx / 2 * alattice
             beta = sqrt(3) / 2 * ky * alattice
 
-            hamiltonian = tbm_Hamiltonian(alpha, beta, data, modelNeighbor)
+            hamiltonian = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
             vals = np.linalg.eigvalsh(hamiltonian)
             for k in range(3):
                 w[k, i, j] = vals[k] * 1.602176634e-19
