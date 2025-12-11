@@ -16,7 +16,9 @@ base_dir = cfg.base_dir
 
 def writeBandstructure(data, name, modelNeighbor, file):
     N = Config.N
-    karr, eigenValues, eigenValues_up, eigenValues_down = calcBandstructure(data, modelNeighbor, N)
+    karr, eigenValues, eigenValues_up, eigenValues_down = calcBandstructure(
+        data, modelNeighbor, N
+    )
     dir_path = f"{base_dir}/{name}"
     file_up = f"{dir_path}/bandstructure_u.dat"
     file_down = f"{dir_path}/bandstructure_d.dat"
@@ -66,7 +68,7 @@ def writeBandstructure(data, name, modelNeighbor, file):
 def calcBandstructure(data, modelNeighbor, N):
     alattice = data["alattice"]
     # grid K phai chay lai moi lan do khac alattice
-    karr, dkx, dky = genGrid.Monkhorst(alattice, N)
+    karr, dkx, dky = genGrid.Cartesian(alattice, N)
 
     eigenValues = np.zeros((N, N, 3))
     eigenValues_up = np.zeros((N, N, 3))
@@ -75,7 +77,9 @@ def calcBandstructure(data, modelNeighbor, N):
         for j in range(N):
             alpha = karr[i, j, 0] / 2 * alattice
             beta = sqrt(3) / 2 * karr[i, j, 1] * alattice
-            ham, dhkx, dhky, hamu, hamd = tbm_Hamiltonian(alpha, beta, data, modelNeighbor, alattice)
+            ham, dhkx, dhky, hamu, hamd = tbm_Hamiltonian(
+                alpha, beta, data, modelNeighbor, alattice
+            )
             vals = np.linalg.eigvalsh(ham)
             eigenValues[i, j, :] = vals
 
