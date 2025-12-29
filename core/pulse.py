@@ -1,12 +1,18 @@
-import numpy as np
-from settings.configs import Config
 import csv
 
+import numpy as np
 
-def Et(t, E0, t_L):
+from settings.configs import Config
 
-    env = E0 * np.exp(-(t**2) / t_L**2)
 
+def Et(t, E0, t_L, omega_L):
+
+    # env = E0 * np.exp(-(t**2) / t_L**2)
+    # * np.cos(omega_L * t)
+
+    # env = E0 * np.exp(-2 * np.log(2) * t**2 / t_L**2)
+    # This pulse use the pulse in 10.1103/PhysRevLett.92.217403
+    env = E0 * np.exp(-4 * np.log(2) * t**2 / t_L**2)
     Ex = env
     Ey = 0
 
